@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QR 비품 관리 대장</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">Inventory QR Manager</p>
+      <h1>QR 비품 관리 대장</h1>
+      <p class="subtitle">비품 등록 · QR 라벨 생성 · 스캔 후 즉시 수정 · 현황 집계</p>
+    </div>
+    <div class="header-actions">
+      <span id="syncStatus" class="pill muted">연결 대기</span>
+      <button id="logoutBtn" class="ghost hidden">로그아웃</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="loginPanel" class="panel login-panel">
+      <div>
+        <h2>관리자 로그인</h2>
+        <p>Firebase Authentication에 등록된 계정으로 로그인하면 비품 목록을 수정할 수 있습니다.</p>
+      </div>
+      <form id="loginForm" class="login-form">
+        <label>
+          이메일
+          <input id="loginEmail" type="email" autocomplete="username" placeholder="admin@example.com" required />
+        </label>
+        <label>
+          비밀번호
+          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="비밀번호" required />
+        </label>
+        <button type="submit" class="primary">로그인</button>
+      </form>
+    </section>
+
+    <section id="appPanel" class="hidden">
+      <section class="stats-grid">
+        <article class="stat-card">
+          <span>총 비품</span>
+          <strong id="totalCount">0</strong>
+        </article>
+        <article class="stat-card">
+          <span>사용중</span>
+          <strong id="usingCount">0</strong>
+        </article>
+        <article class="stat-card">
+          <span>점검 필요</span>
+          <strong id="checkCount">0</strong>
+        </article>
+        <article class="stat-card">
+          <span>폐기/분실</span>
+          <strong id="inactiveCount">0</strong>
+        </article>
+      </section>
+
+      <section class="panel toolbar-panel">
+        <div class="toolbar-row">
+          <label class="search-box">
+            검색
+            <input id="searchInput" type="search" placeholder="비품번호, 품명, 위치, 담당자 검색" />
+          </label>
+          <label>
+            카테고리
+            <select id="categoryFilter">
+              <option value="">전체</option>
+            </select>
+          </label>
+          <label>
+            상태
+            <select id="statusFilter">
+              <option value="">전체</option>
+              <option>사용중</option>
+              <option>보관중</option>
+              <option>수리중</option>
+              <option>점검필요</option>
+              <option>폐기예정</option>
+              <option>분실</option>
+            </select>
+          </label>
+        </div>
+        <div class="button-row">
+          <button id="addBtn" class="primary">+ 비품 등록</button>
+          <button id="scanBtn">QR 스캔</button>
+          <button id="printBtn">QR 라벨 인쇄</button>
+          <button id="exportBtn">CSV 내보내기</button>
+          <button id="importBtn">CSV 가져오기</button>
+          <input id="csvFile" type="file" accept=".csv,text/csv" hidden />
+        </div>
+      </section>
+
+      <section class="panel table-panel">
+        <div class="table-head">
+          <div>
+            <h2>비품 목록</h2>
+            <p id="resultCount">0개 표시 중</p>
+          </div>
+          <button id="resetFiltersBtn" class="ghost">필터 초기화</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>비품번호</th>
+                <th>품명</th>
+                <th>카테고리</th>
+                <th>위치</th>
+                <th>상태</th>
+                <th>담당자</th>
+                <th>최근수정</th>
+                <th>관리</th>
+              </tr>
+            </thead>
+            <tbody id="assetTableBody">
+              <tr>
+                <td colspan="8" class="empty">로그인 후 비품 목록을 불러옵니다.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="assetDialog" class="asset-dialog">
+    <form id="assetForm" method="dialog">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow">Asset Detail</p>
+          <h2 id="dialogTitle">비품 등록</h2>
+        </div>
+        <button type="button" id="closeDialogBtn" class="icon-btn" aria-label="닫기">×</button>
+      </div>
+
+      <input id="assetId" type="hidden" />
+
+      <div class="dialog-grid">
+        <section class="form-grid">
+          <label>
+            비품번호 <span class="required">*</span>
+            <input id="assetNo" required placeholder="예: GSY-2026-001" />
+          </label>
+          <label>
+            품명 <span class="required">*</span>
+            <input id="name" required placeholder="예: 노트북, 빔프로젝터" />
+          </label>
+          <label>
+            카테고리
+            <input id="category" list="categoryList" placeholder="예: 전산장비, 사무비품" />
+            <datalist id="categoryList"></datalist>
+          </label>
+          <label>
+            상태
+            <select id="status">
+              <option>사용중</option>
+              <option>보관중</option>
+              <option>수리중</option>
+              <option>점검필요</option>
+              <option>폐기예정</option>
+              <option>분실</option>
+            </select>
+          </label>
+          <label>
+            보관 위치
+            <input id="location" placeholder="예: 3층 사무실, 재미짐" />
+          </label>
+          <label>
+            담당자/부서
+            <input id="manager" placeholder="예: 운영지원팀 김OO" />
+          </label>
+          <label>
+            구입일
+            <input id="purchaseDate" type="date" />
+          </label>
+          <label>
+            취득금액
+            <input id="price" type="number" min="0" step="100" placeholder="숫자만 입력" />
+          </label>
+          <label>
+            제조사/모델명
+            <input id="model" placeholder="예: LG 27QN600" />
+          </label>
+          <label>
+            시리얼번호
+            <input id="serial" placeholder="S/N" />
+          </label>
+          <label class="span-2">
+            비고/점검 내용
+            <textarea id="memo" rows="4" placeholder="수리 이력, 부속품, 특이사항 등을 기록"></textarea>
+          </label>
+        </section>
+
+        <aside class="qr-card">
+          <h3>비품 QR</h3>
+          <div id="qrPreview" class="qr-preview"></div>
+          <p id="qrHint">저장 후 QR이 생성됩니다.</p>
+          <button id="downloadQrBtn" type="button">QR 이미지 다운로드</button>
+        </aside>
+      </div>
+
+      <div class="dialog-actions">
+        <button id="deleteBtn" type="button" class="danger hidden">삭제</button>
+        <div class="spacer"></div>
+        <button type="button" id="cancelBtn" class="ghost">취소</button>
+        <button type="submit" class="primary">저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="scanDialog" class="scan-dialog">
+    <div class="dialog-head">
+      <div>
+        <p class="eyebrow">QR Scan</p>
+        <h2>비품 QR 스캔</h2>
+      </div>
+      <button type="button" id="closeScanBtn" class="icon-btn" aria-label="닫기">×</button>
+    </div>
+    <div id="reader" class="reader"></div>
+    <p id="scanMessage" class="scan-message">카메라 권한을 허용한 뒤 QR을 비춰주세요.</p>
+  </dialog>
+
+  <section id="printSheet" class="print-sheet" aria-hidden="true"></section>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
