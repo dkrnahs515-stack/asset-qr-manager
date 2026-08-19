@@ -42,6 +42,26 @@ function makeRecordId(sessionId, index) {
   return 'INVR-' + match[1] + '-' + match[2] + '-' + padNumber_(index, 4);
 }
 
+function makeTempAssetId(year, existingIds) {
+  var normalizedYear = String(year);
+  var regex = new RegExp('^TMP-' + normalizedYear + '-(\\d{4})$');
+  var maxSequence = (existingIds || []).reduce(function (max, id) {
+    var match = String(id || '').match(regex);
+    if (!match) return max;
+    return Math.max(max, Number(match[1]));
+  }, 0);
+  return 'TMP-' + normalizedYear + '-' + padNumber_(maxSequence + 1, 4);
+}
+
+function makeUnregisteredRecordId(sessionId, index) {
+  var match = String(sessionId || '').match(/^INV-(\d{4})-(\d{3})$/);
+  if (!match) throw new Error('유효하지 않은 세션ID입니다: ' + sessionId);
+  if (!Number.isInteger(Number(index)) || Number(index) < 1) {
+    throw new Error('미등록 기록 순번은 1 이상의 정수여야 합니다.');
+  }
+  return 'INVR-' + match[1] + '-' + match[2] + '-U' + padNumber_(index, 3);
+}
+
 function buildInventoryRecords(sessionId, assets, errorMap) {
   var errors = errorMap || {};
   return (assets || []).map(function (asset, index) {
@@ -80,6 +100,54 @@ function buildInventoryRecords(sessionId, assets, errorMap) {
       memo: ''
     };
   });
+}
+
+function buildUnregisteredRecord(input) {
+  var data = input || {};
+  if (!data.sessionId || !data.recordId || !data.tempAssetId || !data.name) {
+    throw new Error('미등록 비품 생성에 필요한 식별정보와 품명이 부족합니다.');
+  }
+  if (!data.locationCode || !data.floor || !data.spaceName) {
+    throw new Error('미등록 비품의 발견 위치가 필요합니다.');
+  }
+  var now = data.now || new Date();
+  var actionUuid = String(data.actionUuid || '').trim();
+  if (!actionUuid) throw new Error('작업UUID가 필요합니다.');
+
+  return {
+    recordId: String(data.recordId),
+    sessionId: String(data.sessionId),
+    targetType: '미등록비품',
+    systemId: '',
+    tempAssetId: String(data.tempAssetId),
+    oldAssetNo: '',
+    newAssetNo: '',
+    name: String(data.name).trim(),
+    spec: String(data.spec || '').trim(),
+    originalLocationCode: '',
+    originalFloor: '',
+    originalSpaceName: '',
+    confirmedLocationCode: String(data.locationCode),
+    confirmedFloor: String(data.floor),
+    confirmedSpaceName: String(data.spaceName),
+    result: '미등록발견',
+    issueType: '',
+    physicalConfirmed: 'Y',
+    locationMatches: '',
+    labelStatus: '',
+    fieldMemo: String(data.memo || '').trim(),
+    inspector: String(data.inspector || '').trim() || '미지정',
+    firstInspectedAt: now,
+    lastModifiedAt: now,
+    photoCount: Number(data.photoCount || 0),
+    errorReviewId: '',
+    adminReviewStatus: '미검토',
+    masterApplied: 'N',
+    masterAppliedAt: '',
+    version: 1,
+    lastActionUuid: actionUuid,
+    memo: ''
+  };
 }
 
 function buildLocationMap(locationRows) {
@@ -234,6 +302,63 @@ function aggregateProgress(records, locationMap) {
   return result;
 }
 
+function representativeCode_(locationCode, locationMap) {
+  var item = (locationMap || {})[locationCode];
+  return item && item.representative && item.representative.locationCode
+    ? item.representative.locationCode
+    : (locationCode || 'UNASSIGNED');
+}
+
+function summarizeLocationCloseout(records, representativeLocationCode, locationMap) {
+  var target = String(representativeLocationCode || '');
+  var result = {
+    total: 0,
+    completed: 0,
+    unconfirmed: 0,
+    normal: 0,
+    locationChanged: 0,
+    issue: 0,
+    missing: 0,
+    unregisteredFound: 0,
+    canCloseCleanly: false
+  };
+
+  (records || []).forEach(function (record) {
+    if (record.targetType === '미등록비품' || record.result === '미등록발견') {
+      if (representativeCode_(record.confirmedLocationCode, locationMap) === target) {
+        result.unregisteredFound += 1;
+      }
+      return;
+    }
+    if (record.targetType !== '등록비품') return;
+    if (representativeCode_(record.originalLocationCode, locationMap) !== target) return;
+
+    var metric = resultMetricVector_(record.result);
+    result.total += 1;
+    result.completed += metric.completed;
+    result.unconfirmed += metric.unconfirmed;
+    result.normal += metric.normal;
+    result.locationChanged += metric.locationChanged;
+    result.issue += metric.issue;
+    result.missing += metric.missing;
+  });
+
+  result.canCloseCleanly = result.unconfirmed === 0;
+  return result;
+}
+
+function sortLocationBuckets(buckets) {
+  return (buckets || []).slice().sort(function (a, b) {
+    var aDone = Number(a && a.unconfirmed || 0) > 0 ? 0 : 1;
+    var bDone = Number(b && b.unconfirmed || 0) > 0 ? 0 : 1;
+    if (aDone !== bDone) return aDone - bDone;
+    var aOrder = Number(a && a.sortOrder || 9999);
+    var bOrder = Number(b && b.sortOrder || 9999);
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return String(a && a.spaceName || '').localeCompare(String(b && b.spaceName || ''), 'ko');
+  });
+}
+
 function createInspectionSnapshot(record) {
   var snapshot = {};
   INSPECTION_SNAPSHOT_FIELDS.forEach(function (field) {
@@ -358,10 +483,15 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     makeSessionId: makeSessionId,
     makeRecordId: makeRecordId,
+    makeTempAssetId: makeTempAssetId,
+    makeUnregisteredRecordId: makeUnregisteredRecordId,
     buildInventoryRecords: buildInventoryRecords,
+    buildUnregisteredRecord: buildUnregisteredRecord,
     buildLocationMap: buildLocationMap,
     aggregateProgress: aggregateProgress,
     computeMetricDelta: computeMetricDelta,
+    summarizeLocationCloseout: summarizeLocationCloseout,
+    sortLocationBuckets: sortLocationBuckets,
     createInspectionSnapshot: createInspectionSnapshot,
     applyInspectionAction: applyInspectionAction,
     restoreInspectionSnapshot: restoreInspectionSnapshot
