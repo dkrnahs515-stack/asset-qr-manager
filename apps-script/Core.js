@@ -1,4 +1,17 @@
 var INVENTORY_COMPLETED_RESULTS = ['정상', '위치변경', '상태이상', '미발견', '보류'];
+var INSPECTION_SNAPSHOT_FIELDS = [
+  'confirmedLocationCode',
+  'confirmedFloor',
+  'confirmedSpaceName',
+  'result',
+  'issueType',
+  'physicalConfirmed',
+  'locationMatches',
+  'labelStatus',
+  'fieldMemo',
+  'inspector',
+  'firstInspectedAt'
+];
 
 function padNumber_(value, width) {
   return String(Number(value) || 0).padStart(width, '0');
@@ -221,6 +234,126 @@ function aggregateProgress(records, locationMap) {
   return result;
 }
 
+function createInspectionSnapshot(record) {
+  var snapshot = {};
+  INSPECTION_SNAPSHOT_FIELDS.forEach(function (field) {
+    snapshot[field] = record && Object.prototype.hasOwnProperty.call(record, field)
+      ? record[field]
+      : '';
+  });
+  return snapshot;
+}
+
+function cloneRecord_(record) {
+  var copy = {};
+  Object.keys(record || {}).forEach(function (key) {
+    copy[key] = record[key];
+  });
+  return copy;
+}
+
+function labelStatusForIssue_(issueType) {
+  if (issueType === '라벨없음') return '없음';
+  if (issueType === '라벨훼손') return '훼손';
+  if (issueType === '번호불일치') return '번호불일치';
+  return '정상';
+}
+
+function applyInspectionAction(record, action) {
+  var source = record || {};
+  var input = action || {};
+  if (String(source.result || '미확인') !== '미확인') {
+    throw new Error('현장 판정은 미확인 상태의 비품에서만 처리할 수 있습니다.');
+  }
+
+  var type = String(input.type || '').trim();
+  var now = input.now || new Date();
+  var inspector = String(input.inspector || '').trim() || '미지정';
+  var actionUuid = String(input.actionUuid || '').trim();
+  if (!type) throw new Error('작업유형이 필요합니다.');
+  if (!actionUuid) throw new Error('작업UUID가 필요합니다.');
+
+  var next = cloneRecord_(source);
+  next.issueType = '';
+  next.fieldMemo = String(input.memo || '').trim();
+  next.inspector = inspector;
+  next.firstInspectedAt = next.firstInspectedAt || now;
+  next.lastModifiedAt = now;
+  next.version = Number(next.version || 0) + 1;
+  next.lastActionUuid = actionUuid;
+
+  if (type === '정상확인') {
+    next.confirmedLocationCode = source.originalLocationCode || '';
+    next.confirmedFloor = source.originalFloor || '';
+    next.confirmedSpaceName = source.originalSpaceName || '';
+    next.result = '정상';
+    next.physicalConfirmed = 'Y';
+    next.locationMatches = 'Y';
+    next.labelStatus = '정상';
+    return next;
+  }
+
+  if (type === '위치변경') {
+    if (!input.locationCode || !input.floor || !input.spaceName) {
+      throw new Error('발견 위치 정보가 필요합니다.');
+    }
+    next.confirmedLocationCode = String(input.locationCode);
+    next.confirmedFloor = String(input.floor);
+    next.confirmedSpaceName = String(input.spaceName);
+    next.result = '위치변경';
+    next.physicalConfirmed = 'Y';
+    next.locationMatches = 'N';
+    next.labelStatus = '정상';
+    return next;
+  }
+
+  if (type === '상태이상') {
+    if (!input.issueType) throw new Error('이상유형이 필요합니다.');
+    if (!input.locationCode || !input.floor || !input.spaceName) {
+      throw new Error('실물 확인 위치 정보가 필요합니다.');
+    }
+    next.confirmedLocationCode = String(input.locationCode);
+    next.confirmedFloor = String(input.floor);
+    next.confirmedSpaceName = String(input.spaceName);
+    next.result = '상태이상';
+    next.issueType = String(input.issueType);
+    next.physicalConfirmed = 'Y';
+    next.locationMatches = input.locationMatches === false ? 'N' : 'Y';
+    next.labelStatus = labelStatusForIssue_(next.issueType);
+    return next;
+  }
+
+  if (type === '미발견') {
+    next.confirmedLocationCode = '';
+    next.confirmedFloor = '';
+    next.confirmedSpaceName = '';
+    next.result = '미발견';
+    next.issueType = '';
+    next.physicalConfirmed = 'N';
+    next.locationMatches = '';
+    next.labelStatus = '';
+    return next;
+  }
+
+  throw new Error('지원하지 않는 작업유형입니다: ' + type);
+}
+
+function restoreInspectionSnapshot(record, snapshot, options) {
+  var next = cloneRecord_(record || {});
+  var before = snapshot || {};
+  var opts = options || {};
+
+  INSPECTION_SNAPSHOT_FIELDS.forEach(function (field) {
+    next[field] = Object.prototype.hasOwnProperty.call(before, field) ? before[field] : '';
+  });
+
+  next.lastModifiedAt = opts.now || new Date();
+  next.version = Number(record && record.version || 0) + 1;
+  next.lastActionUuid = String(opts.actionUuid || '').trim();
+  if (!next.lastActionUuid) throw new Error('작업UUID가 필요합니다.');
+  return next;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     makeSessionId: makeSessionId,
@@ -228,6 +361,9 @@ if (typeof module !== 'undefined' && module.exports) {
     buildInventoryRecords: buildInventoryRecords,
     buildLocationMap: buildLocationMap,
     aggregateProgress: aggregateProgress,
-    computeMetricDelta: computeMetricDelta
+    computeMetricDelta: computeMetricDelta,
+    createInspectionSnapshot: createInspectionSnapshot,
+    applyInspectionAction: applyInspectionAction,
+    restoreInspectionSnapshot: restoreInspectionSnapshot
   };
 }
