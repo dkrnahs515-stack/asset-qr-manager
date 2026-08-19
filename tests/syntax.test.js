@@ -10,7 +10,12 @@ function read(relativePath) {
 }
 
 test('Apps Script server files parse as JavaScript', () => {
-  for (const file of ['apps-script/Core.js', 'apps-script/Code.gs', 'apps-script/Inspection.gs']) {
+  for (const file of [
+    'apps-script/Core.js',
+    'apps-script/Code.gs',
+    'apps-script/Inspection.gs',
+    'apps-script/FieldOps.gs'
+  ]) {
     assert.doesNotThrow(() => new Function(read(file)), `${file} should parse`);
   }
 });
