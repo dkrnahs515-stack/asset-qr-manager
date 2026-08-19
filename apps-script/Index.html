@@ -9,224 +9,39 @@
   <script src="https://unpkg.com/htm@3.1.1/dist/htm.umd.js"></script>
   <style>
     :root {
-      --bg: #f4f6f8;
-      --surface: #ffffff;
-      --text: #172033;
-      --muted: #6b7280;
-      --line: #e5e7eb;
-      --primary: #166534;
-      --primary-soft: #dcfce7;
-      --warn: #b45309;
-      --warn-soft: #fef3c7;
-      --danger: #b91c1c;
-      --danger-soft: #fee2e2;
-      --blue: #1d4ed8;
-      --blue-soft: #dbeafe;
-      --shadow: 0 10px 30px rgba(15, 23, 42, .08);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
+      --bg:#f4f6f8;--surface:#fff;--text:#172033;--muted:#6b7280;--line:#e5e7eb;
+      --primary:#166534;--primary-soft:#dcfce7;--warn:#b45309;--warn-soft:#fef3c7;
+      --danger:#b91c1c;--danger-soft:#fee2e2;--blue:#1d4ed8;--blue-soft:#dbeafe;
+      --shadow:0 10px 30px rgba(15,23,42,.08);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif;
     }
-
-    * { box-sizing: border-box; }
-    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); }
-    body { overscroll-behavior-y: none; }
-    button, input { font: inherit; }
-    button { -webkit-tap-highlight-color: transparent; }
-
-    .app {
-      width: 100%;
-      max-width: 560px;
-      min-height: 100vh;
-      margin: 0 auto;
-      background: var(--bg);
-      padding-bottom: calc(84px + env(safe-area-inset-bottom));
-    }
-
-    .topbar {
-      position: sticky;
-      top: 0;
-      z-index: 30;
-      min-height: 64px;
-      padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
-      background: rgba(248, 250, 252, .94);
-      backdrop-filter: blur(14px);
-      border-bottom: 1px solid rgba(229, 231, 235, .9);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .back-btn, .icon-btn {
-      border: 0;
-      background: var(--surface);
-      width: 40px;
-      height: 40px;
-      border-radius: 12px;
-      display: grid;
-      place-items: center;
-      box-shadow: 0 1px 5px rgba(15, 23, 42, .08);
-      color: var(--text);
-      flex: 0 0 auto;
-    }
-
-    .header-copy { min-width: 0; flex: 1; }
-    .eyebrow { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
-    .title { font-weight: 800; font-size: 18px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-    .online-pill {
-      flex: 0 0 auto;
-      border-radius: 999px;
-      padding: 7px 9px;
-      font-size: 11px;
-      font-weight: 800;
-      background: var(--primary-soft);
-      color: var(--primary);
-    }
-    .online-pill.offline { background: var(--danger-soft); color: var(--danger); }
-
-    main { padding: 16px; }
-    .stack { display: grid; gap: 12px; }
-    .section-title { margin: 6px 0 2px; font-size: 15px; font-weight: 800; }
-    .section-help { margin: 0 0 10px; color: var(--muted); font-size: 13px; line-height: 1.55; }
-
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 16px;
-      box-shadow: 0 2px 10px rgba(15, 23, 42, .035);
-    }
-
-    .progress-card { padding: 18px; }
-    .progress-row { display: flex; justify-content: space-between; gap: 12px; align-items: end; }
-    .progress-value { font-size: 34px; font-weight: 900; letter-spacing: -1px; }
-    .progress-count { color: var(--muted); font-size: 13px; text-align: right; }
-    .progress-track { height: 10px; background: #e5e7eb; border-radius: 999px; overflow: hidden; margin-top: 14px; }
-    .progress-fill { height: 100%; background: var(--primary); border-radius: inherit; transition: width .2s ease; }
-
-    .stats-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-    .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
-    .stat-label { color: var(--muted); font-size: 12px; }
-    .stat-value { margin-top: 4px; font-size: 22px; font-weight: 900; }
-
-    .primary-btn, .secondary-btn, .normal-btn {
-      border: 0;
-      border-radius: 16px;
-      min-height: 54px;
-      padding: 0 18px;
-      font-weight: 900;
-      width: 100%;
-    }
-    .primary-btn { background: var(--text); color: white; }
-    .secondary-btn { background: var(--surface); border: 1px solid var(--line); color: var(--text); }
-    .normal-btn { min-height: 62px; background: var(--primary); color: white; font-size: 17px; box-shadow: 0 10px 24px rgba(22, 101, 52, .22); }
-    button:disabled { opacity: .5; cursor: not-allowed; }
-
-    .field-label { display: block; font-weight: 800; font-size: 13px; margin-bottom: 7px; }
-    .text-input, .search-input {
-      width: 100%;
-      border: 1px solid #d1d5db;
-      background: var(--surface);
-      border-radius: 14px;
-      min-height: 48px;
-      padding: 0 14px;
-      color: var(--text);
-      outline: none;
-    }
-    .text-input:focus, .search-input:focus { border-color: #94a3b8; box-shadow: 0 0 0 3px rgba(148, 163, 184, .15); }
-
-    .floor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-    .floor-card {
-      text-align: left;
-      border: 1px solid var(--line);
-      background: var(--surface);
-      border-radius: 18px;
-      padding: 16px;
-      min-height: 124px;
-      color: var(--text);
-      box-shadow: 0 2px 10px rgba(15, 23, 42, .035);
-    }
-    .floor-card.review { border-color: #f59e0b; background: #fffbeb; }
-    .floor-name { font-weight: 900; font-size: 17px; }
-    .floor-percent { margin-top: 12px; font-size: 23px; font-weight: 900; }
-    .floor-meta { color: var(--muted); font-size: 12px; margin-top: 3px; }
-
-    .location-card, .asset-card {
-      width: 100%;
-      text-align: left;
-      border: 1px solid var(--line);
-      background: var(--surface);
-      color: var(--text);
-      border-radius: 17px;
-      padding: 15px;
-    }
-    .location-head, .asset-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-    .location-name, .asset-name { font-weight: 900; line-height: 1.35; }
-    .location-meta, .asset-meta { margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.45; }
-    .mini-progress { height: 7px; background: #e5e7eb; border-radius: 99px; overflow: hidden; margin-top: 12px; }
-    .mini-progress > span { display: block; height: 100%; background: var(--primary); border-radius: inherit; }
-
-    .badge { display: inline-flex; align-items: center; white-space: nowrap; border-radius: 999px; padding: 6px 9px; font-size: 11px; font-weight: 900; }
-    .badge.pending { color: var(--warn); background: var(--warn-soft); }
-    .badge.ok { color: var(--primary); background: var(--primary-soft); }
-    .badge.issue { color: var(--danger); background: var(--danger-soft); }
-    .badge.review { color: var(--blue); background: var(--blue-soft); }
-
-    .filter-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
-    .filter-row::-webkit-scrollbar { display: none; }
-    .filter-chip { border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 999px; padding: 9px 13px; font-weight: 800; white-space: nowrap; }
-    .filter-chip.active { background: var(--text); border-color: var(--text); color: white; }
-
-    .notice { background: var(--warn-soft); color: #78350f; padding: 12px 14px; border-radius: 14px; font-size: 13px; line-height: 1.5; }
-    .error-box { background: var(--danger-soft); color: #7f1d1d; padding: 12px 14px; border-radius: 14px; font-size: 13px; }
-    .empty { text-align: center; padding: 38px 18px; color: var(--muted); }
-
-    .bottom-nav {
-      position: fixed;
-      z-index: 40;
-      left: 50%;
-      bottom: 0;
-      transform: translateX(-50%);
-      width: min(560px, 100%);
-      background: rgba(255,255,255,.96);
-      backdrop-filter: blur(14px);
-      border-top: 1px solid var(--line);
-      padding: 7px 8px calc(7px + env(safe-area-inset-bottom));
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 4px;
-    }
-    .nav-btn { border: 0; background: transparent; color: var(--muted); border-radius: 12px; min-height: 52px; font-size: 11px; font-weight: 800; display: grid; place-items: center; gap: 2px; }
-    .nav-btn span { font-size: 20px; line-height: 1; }
-    .nav-btn.active { color: var(--text); background: #f1f5f9; }
-
-    .overlay { position: fixed; inset: 0; z-index: 70; background: rgba(15, 23, 42, .42); display: flex; align-items: flex-end; justify-content: center; }
-    .sheet-modal { width: min(560px, 100%); max-height: 90vh; overflow: auto; background: var(--surface); border-radius: 24px 24px 0 0; padding: 10px 18px calc(20px + env(safe-area-inset-bottom)); box-shadow: var(--shadow); }
-    .grabber { width: 44px; height: 5px; background: #d1d5db; border-radius: 99px; margin: 2px auto 16px; }
-    .detail-title { font-size: 23px; font-weight: 900; margin: 0; }
-    .detail-number { margin-top: 5px; color: var(--muted); font-weight: 700; }
-    .detail-table { margin: 18px 0; border-top: 1px solid var(--line); }
-    .detail-row { display: grid; grid-template-columns: 100px 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
-    .detail-key { color: var(--muted); }
-    .detail-value { font-weight: 700; word-break: break-word; }
-
-    .toast {
-      position: fixed;
-      z-index: 100;
-      left: 50%;
-      bottom: calc(90px + env(safe-area-inset-bottom));
-      transform: translateX(-50%);
-      max-width: calc(100% - 32px);
-      background: #111827;
-      color: white;
-      border-radius: 14px;
-      padding: 12px 16px;
-      font-size: 13px;
-      font-weight: 800;
-      box-shadow: var(--shadow);
-    }
-
-    .spinner { width: 24px; height: 24px; border: 3px solid #d1d5db; border-top-color: var(--text); border-radius: 50%; animation: spin .7s linear infinite; margin: 8px auto; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text)}
+    body{overscroll-behavior-y:none}button,input,select,textarea{font:inherit}button{-webkit-tap-highlight-color:transparent}
+    .app{width:100%;max-width:560px;min-height:100vh;margin:0 auto;background:var(--bg);padding-bottom:calc(86px + env(safe-area-inset-bottom))}
+    .topbar{position:sticky;top:0;z-index:30;min-height:64px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:rgba(248,250,252,.94);backdrop-filter:blur(14px);border-bottom:1px solid rgba(229,231,235,.9);display:flex;align-items:center;gap:10px}
+    .back-btn{border:0;background:var(--surface);width:40px;height:40px;border-radius:12px;display:grid;place-items:center;box-shadow:0 1px 5px rgba(15,23,42,.08);color:var(--text);flex:0 0 auto}
+    .header-copy{min-width:0;flex:1}.eyebrow{font-size:12px;color:var(--muted);margin-bottom:2px}.title{font-weight:800;font-size:18px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .online-pill{flex:0 0 auto;border-radius:999px;padding:7px 9px;font-size:11px;font-weight:800;background:var(--primary-soft);color:var(--primary)}.online-pill.offline{background:var(--danger-soft);color:var(--danger)}
+    main{padding:16px}.stack{display:grid;gap:12px}.section-title{margin:6px 0 2px;font-size:15px;font-weight:800}.section-help{margin:0 0 10px;color:var(--muted);font-size:13px;line-height:1.55}
+    .card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 2px 10px rgba(15,23,42,.035)}
+    .progress-card{padding:18px}.progress-row{display:flex;justify-content:space-between;gap:12px;align-items:end}.progress-value{font-size:34px;font-weight:900;letter-spacing:-1px}.progress-count{color:var(--muted);font-size:13px;text-align:right}
+    .progress-track{height:10px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin-top:14px}.progress-fill{height:100%;background:var(--primary);border-radius:inherit;transition:width .2s ease}
+    .stats-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.stat{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px}.stat-label{color:var(--muted);font-size:12px}.stat-value{margin-top:4px;font-size:22px;font-weight:900}
+    .primary-btn,.secondary-btn,.normal-btn,.danger-btn{border:0;border-radius:16px;min-height:54px;padding:0 18px;font-weight:900;width:100%}.primary-btn{background:var(--text);color:white}.secondary-btn{background:var(--surface);border:1px solid var(--line);color:var(--text)}.normal-btn{min-height:62px;background:var(--primary);color:white;font-size:17px;box-shadow:0 10px 24px rgba(22,101,52,.22)}.danger-btn{background:var(--danger);color:#fff}button:disabled{opacity:.5;cursor:not-allowed}
+    .field-label{display:block;font-weight:800;font-size:13px;margin-bottom:7px}.text-input,.search-input,.select-input,.memo-input{width:100%;border:1px solid #d1d5db;background:var(--surface);border-radius:14px;min-height:48px;padding:0 14px;color:var(--text);outline:none}.memo-input{padding:12px 14px;min-height:84px;resize:vertical}.text-input:focus,.search-input:focus,.select-input:focus,.memo-input:focus{border-color:#94a3b8;box-shadow:0 0 0 3px rgba(148,163,184,.15)}
+    .floor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.floor-card{text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:18px;padding:16px;min-height:124px;color:var(--text);box-shadow:0 2px 10px rgba(15,23,42,.035)}.floor-card.review{border-color:#f59e0b;background:#fffbeb}.floor-name{font-weight:900;font-size:17px}.floor-percent{margin-top:12px;font-size:23px;font-weight:900}.floor-meta{color:var(--muted);font-size:12px;margin-top:3px}
+    .location-card,.asset-card{width:100%;text-align:left;border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:17px;padding:15px}.location-head,.asset-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.location-name,.asset-name{font-weight:900;line-height:1.35}.location-meta,.asset-meta{margin-top:5px;color:var(--muted);font-size:12px;line-height:1.45}.mini-progress{height:7px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin-top:12px}.mini-progress>span{display:block;height:100%;background:var(--primary);border-radius:inherit}
+    .badge{display:inline-flex;align-items:center;white-space:nowrap;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:900}.badge.pending{color:var(--warn);background:var(--warn-soft)}.badge.ok{color:var(--primary);background:var(--primary-soft)}.badge.issue{color:var(--danger);background:var(--danger-soft)}.badge.review{color:var(--blue);background:var(--blue-soft)}
+    .filter-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}.filter-row::-webkit-scrollbar{display:none}.filter-chip{border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:999px;padding:9px 13px;font-weight:800;white-space:nowrap}.filter-chip.active{background:var(--text);border-color:var(--text);color:white}
+    .notice{background:var(--warn-soft);color:#78350f;padding:12px 14px;border-radius:14px;font-size:13px;line-height:1.5}.error-box{background:var(--danger-soft);color:#7f1d1d;padding:12px 14px;border-radius:14px;font-size:13px}.empty{text-align:center;padding:38px 18px;color:var(--muted)}
+    .bottom-nav{position:fixed;z-index:40;left:50%;bottom:0;transform:translateX(-50%);width:min(560px,100%);background:rgba(255,255,255,.96);backdrop-filter:blur(14px);border-top:1px solid var(--line);padding:7px 8px calc(7px + env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(4,1fr);gap:4px}.nav-btn{border:0;background:transparent;color:var(--muted);border-radius:12px;min-height:52px;font-size:11px;font-weight:800;display:grid;place-items:center;gap:2px}.nav-btn span{font-size:20px;line-height:1}.nav-btn.active{color:var(--text);background:#f1f5f9}
+    .overlay{position:fixed;inset:0;z-index:70;background:rgba(15,23,42,.42);display:flex;align-items:flex-end;justify-content:center}.sheet-modal{width:min(560px,100%);max-height:92vh;overflow:auto;background:var(--surface);border-radius:24px 24px 0 0;padding:10px 18px calc(20px + env(safe-area-inset-bottom));box-shadow:var(--shadow)}.grabber{width:44px;height:5px;background:#d1d5db;border-radius:99px;margin:2px auto 16px}.detail-title{font-size:23px;font-weight:900;margin:0}.detail-number{margin-top:5px;color:var(--muted);font-weight:700}.detail-table{margin:18px 0;border-top:1px solid var(--line)}.detail-row{display:grid;grid-template-columns:100px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px}.detail-key{color:var(--muted)}.detail-value{font-weight:700;word-break:break-word}
+    .action-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}.action-btn{border:1px solid var(--line);background:#f8fafc;border-radius:14px;min-height:66px;padding:8px 5px;font-size:12px;font-weight:900;color:var(--text)}.action-btn .emoji{display:block;font-size:20px;margin-bottom:4px}.action-btn.warn{background:#fffbeb;border-color:#fcd34d}.action-btn.issue{background:#fff7ed;border-color:#fdba74}.action-btn.missing{background:#fef2f2;border-color:#fecaca}
+    .action-panel{margin-top:14px;padding:14px;background:#f8fafc;border:1px solid var(--line);border-radius:16px}.action-panel-title{font-weight:900;margin-bottom:10px}.issue-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-bottom:12px}.issue-chip{border:1px solid var(--line);background:#fff;border-radius:12px;min-height:42px;padding:7px;font-weight:800;color:var(--text)}.issue-chip.active{background:var(--danger-soft);border-color:#fca5a5;color:var(--danger)}
+    .action-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.action-buttons button{min-height:48px}
+    .undo-bar{position:fixed;z-index:90;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(calc(560px - 24px),calc(100% - 24px));background:#111827;color:#fff;border-radius:16px;padding:11px 12px;box-shadow:var(--shadow);display:flex;align-items:center;gap:10px}.undo-copy{min-width:0;flex:1;font-size:12px;line-height:1.35}.undo-copy strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.undo-btn{flex:0 0 auto;border:1px solid rgba(255,255,255,.25);background:#fff;color:#111827;border-radius:10px;min-height:38px;padding:0 11px;font-weight:900}.undo-close{flex:0 0 auto;border:0;background:transparent;color:#cbd5e1;font-size:18px}
+    .toast{position:fixed;z-index:100;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:calc(100% - 32px);background:#111827;color:white;border-radius:14px;padding:12px 16px;font-size:13px;font-weight:800;box-shadow:var(--shadow)}
+    .spinner{width:24px;height:24px;border:3px solid #d1d5db;border-top-color:var(--text);border-radius:50%;animation:spin .7s linear infinite;margin:8px auto}@keyframes spin{to{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
@@ -234,430 +49,82 @@
   <script>
     const html = htm.bind(React.createElement);
     const { useEffect, useMemo, useState } = React;
+    const ISSUE_TYPES = ['파손','고장','수리필요','사용불가','불용검토','라벨없음','라벨훼손','번호불일치','정보수정필요','기타'];
 
     const api = {
-      getBootstrapData() {
-        return new Promise((resolve, reject) => {
-          google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getBootstrapData();
-        });
-      },
-      startInventorySession(inspector) {
-        return new Promise((resolve, reject) => {
-          google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).startInventorySession(inspector);
-        });
-      },
-      getLocationsForFloor(sessionId, floorKey) {
-        return new Promise((resolve, reject) => {
-          google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getLocationsForFloor(sessionId, floorKey);
-        });
-      },
-      getAssetsForLocation(sessionId, locationCode) {
-        return new Promise((resolve, reject) => {
-          google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getAssetsForLocation(sessionId, locationCode);
-        });
-      },
-      markAssetNormal(payload) {
-        return new Promise((resolve, reject) => {
-          google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).markAssetNormal(payload);
-        });
-      }
+      getBootstrapData(){return callServer('getBootstrapData')},
+      startInventorySession(inspector){return callServer('startInventorySession',inspector)},
+      getLocationsForFloor(sessionId,floorKey){return callServer('getLocationsForFloor',sessionId,floorKey)},
+      getAssetsForLocation(sessionId,locationCode){return callServer('getAssetsForLocation',sessionId,locationCode)},
+      getSelectableLocations(){return callServer('getSelectableLocations')},
+      applyInspectionAction(payload){return callServer('applyInspectionActionFromMobile',payload)},
+      undoInspectionAction(payload){return callServer('undoInspectionAction',payload)}
     };
+    function callServer(name,...args){return new Promise((resolve,reject)=>{google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[name](...args)})}
+    function errorMessage(error){if(!error)return '알 수 없는 오류가 발생했습니다.';return error.message||String(error)}
+    function uuid(){if(window.crypto&&typeof window.crypto.randomUUID==='function')return window.crypto.randomUUID();return 'act-'+Date.now()+'-'+Math.random().toString(16).slice(2)}
+    function resultBadge(result){if(result==='정상')return['정상','ok'];if(result==='미확인')return['미확인','pending'];if(result==='보류')return['보류','review'];return[result||'확인필요','issue']}
+    function completionDelta(before,after){if(before==='미확인'&&after!=='미확인')return 1;if(before!=='미확인'&&after==='미확인')return -1;return 0}
 
-    function errorMessage(error) {
-      if (!error) return '알 수 없는 오류가 발생했습니다.';
-      return error.message || String(error);
-    }
+    function Header({view,title,subtitle,onBack,online}){return html`<header className="topbar">${view!=='home'?html`<button className="back-btn" onClick=${onBack} aria-label="뒤로">←</button>`:null}<div className="header-copy"><div className="eyebrow">${subtitle||'강서청소년회관'}</div><div className="title">${title}</div></div><div className=${'online-pill'+(online?'':' offline')}>${online?'● 온라인':'● 오프라인'}</div></header>`}
+    function ProgressCard({summary}){if(!summary)return null;return html`<section className="card progress-card"><div className="progress-row"><div><div className="eyebrow">전체 전수조사 진행률</div><div className="progress-value">${Number(summary.progress||0).toFixed(1)}%</div></div><div className="progress-count"><strong>${summary.completed||0} / ${summary.total||0}</strong><br/>미확인 ${summary.unconfirmed||0}개</div></div><div className="progress-track"><div className="progress-fill" style=${{width:`${Math.min(100,Number(summary.progress||0))}%`}}></div></div></section>`}
 
-    function uuid() {
-      if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
-      return 'act-' + Date.now() + '-' + Math.random().toString(16).slice(2);
-    }
+    function Home({bootstrap,inspector,setInspector,onStart,onContinue,busy}){
+      const session=bootstrap&&bootstrap.activeSession,summary=bootstrap&&bootstrap.summary;
+      return html`<main className="stack">${session?html`<${ProgressCard} summary=${summary}/><div className="stats-grid"><div className="stat"><div className="stat-label">정상</div><div className="stat-value">${summary.normal}</div></div><div className="stat"><div className="stat-label">위치변경</div><div className="stat-value">${summary.locationChanged}</div></div><div className="stat"><div className="stat-label">상태이상</div><div className="stat-value">${summary.issue}</div></div><div className="stat"><div className="stat-label">미발견</div><div className="stat-value">${summary.missing}</div></div></div><section className="card"><div className="eyebrow">진행 중인 세션</div><div style=${{fontWeight:900,fontSize:'18px',marginTop:'4px'}}>${session.name}</div><div className="section-help" style=${{marginTop:'7px'}}>${session.sessionId} · 기준 ${session.baselineCount}개</div><button className="primary-btn" onClick=${onContinue}>▶ 전수조사 이어하기</button></section>`:html`<section className="card"><div className="section-title">새 전수조사 시작</div><p className="section-help">현재 비품마스터를 기준으로 조사 기록을 먼저 생성합니다. 현장 확인 전에는 원본 비품마스터를 수정하지 않습니다.</p><label className="field-label" htmlFor="inspector">조사자 이름</label><input id="inspector" className="text-input" value=${inspector} onInput=${e=>setInspector(e.target.value)} placeholder="예: 이건희"/><div style=${{height:'12px'}}></div><button className="primary-btn" disabled=${busy||!inspector.trim()} onClick=${onStart}>${busy?'전수조사 생성 중…':'전수조사 시작'}</button></section><div className="notice">전수조사를 시작하면 현재 등록 비품 전체가 <strong>미확인</strong> 상태로 생성됩니다.</div>`}</main>`}
 
-    function resultBadge(result) {
-      if (result === '정상') return ['정상', 'ok'];
-      if (result === '미확인') return ['미확인', 'pending'];
-      if (result === '보류') return ['보류', 'review'];
-      return [result || '확인필요', 'issue'];
-    }
+    function Floors({bootstrap,onSelectFloor}){const floors=bootstrap.floors||[];return html`<main><div className="section-title">조사할 층을 선택하세요</div><p className="section-help">등록된 기존 위치를 기준으로 진행률을 계산합니다.</p><div className="floor-grid">${floors.map(floor=>html`<button key=${floor.floor} className="floor-card" onClick=${()=>onSelectFloor(floor.floor)}><div className="floor-name">${floor.floor}</div><div className="floor-percent">${Number(floor.progress||0).toFixed(0)}%</div><div className="floor-meta">${floor.completed} / ${floor.total} · 미확인 ${floor.unconfirmed}</div></button>`)}${bootstrap.reviewLocations>0?html`<button className="floor-card review" onClick=${()=>onSelectFloor('__REVIEW__')}><div className="floor-name">⚠ 위치 확인 필요</div><div className="floor-percent">${bootstrap.reviewLocations}</div><div className="floor-meta">검토 위치 그룹</div></button>`:null}</div></main>`}
 
-    function Header({ view, title, subtitle, onBack, online }) {
-      return html`
-        <header className="topbar">
-          ${view !== 'home' ? html`<button className="back-btn" onClick=${onBack} aria-label="뒤로">←</button>` : null}
-          <div className="header-copy">
-            <div className="eyebrow">${subtitle || '강서청소년회관'}</div>
-            <div className="title">${title}</div>
-          </div>
-          <div className=${'online-pill' + (online ? '' : ' offline')}>${online ? '● 온라인' : '● 오프라인'}</div>
-        </header>
-      `;
-    }
+    function Locations({locations,loading,onSelectLocation}){return html`<main><div className="section-title">공간을 선택하세요</div><p className="section-help">미확인 수가 남아 있는 공간부터 조사하면 빠릅니다.</p>${loading?html`<div className="spinner"></div>`:html`<div className="stack">${locations.length?locations.map(location=>html`<button key=${location.locationCode} className="location-card" onClick=${()=>onSelectLocation(location)}><div className="location-head"><div><div className="location-name">${location.spaceName}</div><div className="location-meta">${location.floor} · ${location.completed}/${location.total} 완료 · 미확인 ${location.unconfirmed}</div></div><span className=${'badge '+(location.unconfirmed?'pending':'ok')}>${location.unconfirmed?'진행중':'완료'}</span></div><div className="mini-progress"><span style=${{width:`${location.progress||0}%`}}></span></div></button>`):html`<div className="empty">해당 그룹에 조사 공간이 없습니다.</div>`}</div>`}</main>`}
 
-    function ProgressCard({ summary }) {
-      if (!summary) return null;
-      return html`
-        <section className="card progress-card">
-          <div className="progress-row">
-            <div>
-              <div className="eyebrow">전체 전수조사 진행률</div>
-              <div className="progress-value">${Number(summary.progress || 0).toFixed(1)}%</div>
-            </div>
-            <div className="progress-count">
-              <strong>${summary.completed || 0} / ${summary.total || 0}</strong><br />
-              미확인 ${summary.unconfirmed || 0}개
-            </div>
-          </div>
-          <div className="progress-track"><div className="progress-fill" style=${{ width: `${Math.min(100, Number(summary.progress || 0))}%` }}></div></div>
-        </section>
-      `;
-    }
+    function Assets({assets,loading,filter,setFilter,search,setSearch,onSelectAsset}){
+      const visible=useMemo(()=>{const keyword=search.trim().toLowerCase();return assets.filter(asset=>filter==='all'||asset.result==='미확인').filter(asset=>!keyword||[asset.systemId,asset.oldAssetNo,asset.newAssetNo,asset.name,asset.spec].join(' ').toLowerCase().includes(keyword))},[assets,filter,search]);
+      return html`<main className="stack"><input className="search-input" value=${search} onInput=${e=>setSearch(e.target.value)} placeholder="비품번호·품명·규격 검색"/><div className="filter-row"><button className=${'filter-chip '+(filter==='pending'?'active':'')} onClick=${()=>setFilter('pending')}>미확인만</button><button className=${'filter-chip '+(filter==='all'?'active':'')} onClick=${()=>setFilter('all')}>전체</button><div className="filter-chip" style=${{pointerEvents:'none'}}>${visible.length}개 표시</div></div>${loading?html`<div className="spinner"></div>`:html`<div className="stack">${visible.length?visible.map(asset=>{const[label,cls]=resultBadge(asset.result);return html`<button key=${asset.recordId} className="asset-card" onClick=${()=>onSelectAsset(asset)}><div className="asset-head"><div><div className="asset-name">${asset.name||'품명 미상'}</div><div className="asset-meta">${asset.newAssetNo||asset.oldAssetNo||asset.systemId}<br/>${asset.spec||'규격 미확인'}</div></div><span className=${'badge '+cls}>${label}</span></div>${asset.errorReviewId?html`<div className="notice" style=${{marginTop:'10px',padding:'8px 10px'}}>⚠ 오류 확인 대상 ${asset.errorReviewId}</div>`:null}</button>`}):html`<div className="empty">조건에 맞는 비품이 없습니다.</div>`}</div>`}</main>`}
 
-    function Home({ bootstrap, inspector, setInspector, onStart, onContinue, busy }) {
-      const session = bootstrap && bootstrap.activeSession;
-      const summary = bootstrap && bootstrap.summary;
-      return html`
-        <main className="stack">
-          ${session ? html`
-            <${ProgressCard} summary=${summary} />
-            <div className="stats-grid">
-              <div className="stat"><div className="stat-label">정상</div><div className="stat-value">${summary.normal}</div></div>
-              <div className="stat"><div className="stat-label">위치변경</div><div className="stat-value">${summary.locationChanged}</div></div>
-              <div className="stat"><div className="stat-label">상태이상</div><div className="stat-value">${summary.issue}</div></div>
-              <div className="stat"><div className="stat-label">미발견</div><div className="stat-value">${summary.missing}</div></div>
-            </div>
-            <section className="card">
-              <div className="eyebrow">진행 중인 세션</div>
-              <div style=${{ fontWeight: 900, fontSize: '18px', marginTop: '4px' }}>${session.name}</div>
-              <div className="section-help" style=${{ marginTop: '7px' }}>${session.sessionId} · 기준 ${session.baselineCount}개</div>
-              <button className="primary-btn" onClick=${onContinue}>▶ 전수조사 이어하기</button>
-            </section>
-          ` : html`
-            <section className="card">
-              <div className="section-title">새 전수조사 시작</div>
-              <p className="section-help">현재 비품마스터를 기준으로 조사 기록을 먼저 생성합니다. 현장 확인 전에는 원본 비품마스터를 수정하지 않습니다.</p>
-              <label className="field-label" for="inspector">조사자 이름</label>
-              <input id="inspector" className="text-input" value=${inspector} onInput=${e => setInspector(e.target.value)} placeholder="예: 이건희" />
-              <div style=${{ height: '12px' }}></div>
-              <button className="primary-btn" disabled=${busy || !inspector.trim()} onClick=${onStart}>${busy ? '전수조사 생성 중…' : '전수조사 시작'}</button>
-            </section>
-            <div className="notice">전수조사를 시작하면 현재 등록 비품 전체가 <strong>미확인</strong> 상태로 생성됩니다. 현장에서 확인할수록 정상·이상·미발견 상태로 바뀝니다.</div>
-          `}
-        </main>
-      `;
-    }
+    function AssetDetail({asset,busy,onClose,onSubmit,selectableLocations,currentLocation}){
+      const [mode,setMode]=useState('');
+      const [locationCode,setLocationCode]=useState('');
+      const [issueType,setIssueType]=useState('');
+      const [memo,setMemo]=useState('');
+      useEffect(()=>{setMode('');setLocationCode('');setIssueType('');setMemo('')},[asset&&asset.recordId]);
+      if(!asset)return null;
+      const[label,cls]=resultBadge(asset.result);
+      const locationOptions=(selectableLocations||[]).filter(loc=>mode!=='위치변경'||loc.locationCode!==currentLocation?.locationCode);
+      function begin(nextMode){setMode(nextMode);setMemo('');setIssueType('');setLocationCode(nextMode==='상태이상'?(currentLocation?.locationCode||''):'')}
+      function submit(){onSubmit({type:mode,locationCode,issueType,memo})}
+      const canSubmit=mode==='위치변경'?!!locationCode:mode==='상태이상'?!!issueType&&!!locationCode:mode==='미발견';
+      return html`<div className="overlay" onClick=${onClose}><section className="sheet-modal" onClick=${e=>e.stopPropagation()}><div className="grabber"></div><div className="asset-head"><div><h2 className="detail-title">${asset.name||'품명 미상'}</h2><div className="detail-number">${asset.newAssetNo||'-'} · Old ${asset.oldAssetNo||'-'}</div></div><span className=${'badge '+cls}>${label}</span></div><div className="detail-table"><div className="detail-row"><div className="detail-key">시스템 ID</div><div className="detail-value">${asset.systemId}</div></div><div className="detail-row"><div className="detail-key">규격</div><div className="detail-value">${asset.spec||'미확인'}</div></div><div className="detail-row"><div className="detail-key">등록 위치</div><div className="detail-value">${asset.originalFloor} > ${asset.originalSpaceName}</div></div>${asset.errorReviewId?html`<div className="detail-row"><div className="detail-key">오류 검토</div><div className="detail-value">${asset.errorReviewId}</div></div>`:null}</div>
+      ${asset.result==='미확인'?html`<button className="normal-btn" disabled=${busy} onClick=${()=>onSubmit({type:'정상확인'})}>${busy?'저장 중…':'✓ 정상 · 실물 확인'}</button><div className="action-grid"><button className="action-btn warn" disabled=${busy} onClick=${()=>begin('위치변경')}><span className="emoji">📍</span>위치 다름</button><button className="action-btn issue" disabled=${busy} onClick=${()=>begin('상태이상')}><span className="emoji">⚠️</span>상태 이상</button><button className="action-btn missing" disabled=${busy} onClick=${()=>begin('미발견')}><span className="emoji">🔎</span>못 찾음</button></div>
+      ${mode==='위치변경'?html`<div className="action-panel"><div className="action-panel-title">📍 실제 발견 위치</div><label className="field-label">발견한 공간</label><select className="select-input" value=${locationCode} onChange=${e=>setLocationCode(e.target.value)}><option value="">위치를 선택하세요</option>${locationOptions.map(loc=>html`<option key=${loc.locationCode} value=${loc.locationCode}>${loc.floor} > ${loc.spaceName}${loc.displayStatus==='검토'?' ⚠':''}</option>`)}</select><div style=${{height:'10px'}}></div><label className="field-label">메모 (선택)</label><textarea className="memo-input" value=${memo} onInput=${e=>setMemo(e.target.value)} placeholder="예: 피아노실 수납장 옆에서 발견"></textarea><div className="action-buttons"><button className="secondary-btn" onClick=${()=>setMode('')}>취소</button><button className="primary-btn" disabled=${busy||!canSubmit} onClick=${submit}>위치변경 저장</button></div></div>`:null}
+      ${mode==='상태이상'?html`<div className="action-panel"><div className="action-panel-title">⚠️ 상태 이상 기록</div><div className="issue-grid">${ISSUE_TYPES.map(type=>html`<button key=${type} className=${'issue-chip '+(issueType===type?'active':'')} onClick=${()=>setIssueType(type)}>${type}</button>`)}</div><label className="field-label">실물 확인 위치</label><select className="select-input" value=${locationCode} onChange=${e=>setLocationCode(e.target.value)}>${(selectableLocations||[]).map(loc=>html`<option key=${loc.locationCode} value=${loc.locationCode}>${loc.floor} > ${loc.spaceName}</option>`)}</select><div style=${{height:'10px'}}></div><label className="field-label">상태 메모 (선택)</label><textarea className="memo-input" value=${memo} onInput=${e=>setMemo(e.target.value)} placeholder="예: 전원 케이블 없음 / 다리 파손"></textarea><div className="action-buttons"><button className="secondary-btn" onClick=${()=>setMode('')}>취소</button><button className="danger-btn" disabled=${busy||!canSubmit} onClick=${submit}>상태이상 저장</button></div></div>`:null}
+      ${mode==='미발견'?html`<div className="action-panel"><div className="action-panel-title">🔎 실물 미발견</div><div className="notice">이 처리는 <strong>분실 확정이 아닙니다.</strong> 현재 조사에서 실물을 찾지 못했다는 기록만 남깁니다.</div><div style=${{height:'10px'}}></div><label className="field-label">메모 (선택)</label><textarea className="memo-input" value=${memo} onInput=${e=>setMemo(e.target.value)} placeholder="예: 창고 전체 확인 후 미발견"></textarea><div className="action-buttons"><button className="secondary-btn" onClick=${()=>setMode('')}>취소</button><button className="danger-btn" disabled=${busy} onClick=${submit}>미발견으로 기록</button></div></div>`:null}
+      `:html`<button className="secondary-btn" onClick=${onClose}>현재 상태: ${asset.result}</button>`}</section></div>`}
 
-    function Floors({ bootstrap, onSelectFloor }) {
-      const floors = bootstrap.floors || [];
-      return html`
-        <main>
-          <div className="section-title">조사할 층을 선택하세요</div>
-          <p className="section-help">등록된 기존 위치를 기준으로 진행률을 계산합니다.</p>
-          <div className="floor-grid">
-            ${floors.map(floor => html`
-              <button key=${floor.floor} className="floor-card" onClick=${() => onSelectFloor(floor.floor)}>
-                <div className="floor-name">${floor.floor}</div>
-                <div className="floor-percent">${Number(floor.progress || 0).toFixed(0)}%</div>
-                <div className="floor-meta">${floor.completed} / ${floor.total} · 미확인 ${floor.unconfirmed}</div>
-              </button>
-            `)}
-            ${bootstrap.reviewLocations > 0 ? html`
-              <button className="floor-card review" onClick=${() => onSelectFloor('__REVIEW__')}>
-                <div className="floor-name">⚠ 위치 확인 필요</div>
-                <div className="floor-percent">${bootstrap.reviewLocations}</div>
-                <div className="floor-meta">검토 위치 그룹</div>
-              </button>
-            ` : null}
-          </div>
-        </main>
-      `;
-    }
+    function BottomNav({view,onHome,onField}){return html`<nav className="bottom-nav"><button className=${'nav-btn '+(view!=='home'?'active':'')} onClick=${onField}><span>🏠</span>현장</button><button className="nav-btn" disabled><span>🔍</span>통합검색</button><button className="nav-btn" disabled><span>⚠</span>이슈</button><button className=${'nav-btn '+(view==='home'?'active':'')} onClick=${onHome}><span>📊</span>현황</button></nav>`}
 
-    function Locations({ locations, loading, onSelectLocation }) {
-      return html`
-        <main>
-          <div className="section-title">공간을 선택하세요</div>
-          <p className="section-help">미확인 수가 남아 있는 공간부터 조사하면 빠릅니다.</p>
-          ${loading ? html`<div className="spinner"></div>` : html`
-            <div className="stack">
-              ${locations.length ? locations.map(location => html`
-                <button key=${location.locationCode} className="location-card" onClick=${() => onSelectLocation(location)}>
-                  <div className="location-head">
-                    <div>
-                      <div className="location-name">${location.spaceName}</div>
-                      <div className="location-meta">${location.floor} · ${location.completed}/${location.total} 완료 · 미확인 ${location.unconfirmed}</div>
-                    </div>
-                    <span className=${'badge ' + (location.unconfirmed ? 'pending' : 'ok')}>${location.unconfirmed ? '진행중' : '완료'}</span>
-                  </div>
-                  <div className="mini-progress"><span style=${{ width: `${location.progress || 0}%` }}></span></div>
-                </button>
-              `) : html`<div className="empty">해당 그룹에 조사 공간이 없습니다.</div>`}
-            </div>
-          `}
-        </main>
-      `;
-    }
+    function App(){
+      const[bootstrap,setBootstrap]=useState(null),[view,setView]=useState('home'),[inspector,setInspector]=useState(()=>localStorage.getItem('inventoryInspector')||''),[selectedFloor,setSelectedFloor]=useState(''),[locations,setLocations]=useState([]),[selectedLocation,setSelectedLocation]=useState(null),[assets,setAssets]=useState([]),[selectedAsset,setSelectedAsset]=useState(null),[selectableLocations,setSelectableLocations]=useState([]),[filter,setFilter]=useState('pending'),[search,setSearch]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(''),[toast,setToast]=useState(''),[online,setOnline]=useState(navigator.onLine),[lastUndo,setLastUndo]=useState(null);
+      useEffect(()=>{const a=()=>setOnline(true),b=()=>setOnline(false);window.addEventListener('online',a);window.addEventListener('offline',b);return()=>{window.removeEventListener('online',a);window.removeEventListener('offline',b)}},[]);
+      useEffect(()=>{api.getBootstrapData().then(data=>setBootstrap(data)).catch(err=>setError(errorMessage(err))).finally(()=>setLoading(false))},[]);
+      useEffect(()=>{if(inspector.trim())localStorage.setItem('inventoryInspector',inspector.trim())},[inspector]);
+      useEffect(()=>{if(!bootstrap?.activeSession||selectableLocations.length)return;api.getSelectableLocations().then(data=>setSelectableLocations(data||[])).catch(err=>setError(errorMessage(err)))},[bootstrap&&bootstrap.activeSession&&bootstrap.activeSession.sessionId]);
+      useEffect(()=>{if(!toast)return;const timer=setTimeout(()=>setToast(''),2200);return()=>clearTimeout(timer)},[toast]);
 
-    function Assets({ assets, loading, filter, setFilter, search, setSearch, onSelectAsset }) {
-      const visible = useMemo(() => {
-        const keyword = search.trim().toLowerCase();
-        return assets.filter(asset => filter === 'all' || asset.result === '미확인')
-          .filter(asset => {
-            if (!keyword) return true;
-            return [asset.systemId, asset.oldAssetNo, asset.newAssetNo, asset.name, asset.spec]
-              .join(' ').toLowerCase().includes(keyword);
-          });
-      }, [assets, filter, search]);
+      async function startSession(){setBusy(true);setError('');try{const data=await api.startInventorySession(inspector.trim());setBootstrap(data);setView('floors');setToast(`${data.summary.total}개 비품 조사 준비 완료`);const locationData=await api.getSelectableLocations();setSelectableLocations(locationData||[])}catch(err){setError(errorMessage(err))}finally{setBusy(false)}}
+      async function selectFloor(floorKey){if(!bootstrap?.activeSession)return;setSelectedFloor(floorKey);setLocations([]);setLoading(true);setError('');setView('locations');try{const data=await api.getLocationsForFloor(bootstrap.activeSession.sessionId,floorKey);setLocations(data||[])}catch(err){setError(errorMessage(err))}finally{setLoading(false)}}
+      async function selectLocation(location){setSelectedLocation(location);setAssets([]);setSearch('');setFilter('pending');setLoading(true);setError('');setView('assets');try{const data=await api.getAssetsForLocation(bootstrap.activeSession.sessionId,location.locationCode);setAssets(data||[])}catch(err){setError(errorMessage(err))}finally{setLoading(false)}}
 
-      return html`
-        <main className="stack">
-          <input className="search-input" value=${search} onInput=${e => setSearch(e.target.value)} placeholder="비품번호·품명·규격 검색" />
-          <div className="filter-row">
-            <button className=${'filter-chip ' + (filter === 'pending' ? 'active' : '')} onClick=${() => setFilter('pending')}>미확인만</button>
-            <button className=${'filter-chip ' + (filter === 'all' ? 'active' : '')} onClick=${() => setFilter('all')}>전체</button>
-            <div className="filter-chip" style=${{ pointerEvents: 'none' }}>${visible.length}개 표시</div>
-          </div>
-          ${loading ? html`<div className="spinner"></div>` : html`
-            <div className="stack">
-              ${visible.length ? visible.map(asset => {
-                const [label, cls] = resultBadge(asset.result);
-                return html`
-                  <button key=${asset.recordId} className="asset-card" onClick=${() => onSelectAsset(asset)}>
-                    <div className="asset-head">
-                      <div>
-                        <div className="asset-name">${asset.name || '품명 미상'}</div>
-                        <div className="asset-meta">${asset.newAssetNo || asset.oldAssetNo || asset.systemId}<br />${asset.spec || '규격 미확인'}</div>
-                      </div>
-                      <span className=${'badge ' + cls}>${label}</span>
-                    </div>
-                    ${asset.errorReviewId ? html`<div className="notice" style=${{ marginTop: '10px', padding: '8px 10px' }}>⚠ 오류 확인 대상 ${asset.errorReviewId}</div>` : null}
-                  </button>
-                `;
-              }) : html`<div className="empty">조건에 맞는 비품이 없습니다.</div>`}
-            </div>
-          `}
-        </main>
-      `;
-    }
+      function adjustBuckets(fromResult,toResult,context){const delta=completionDelta(fromResult,toResult);if(!delta)return;setBootstrap(current=>{if(!current)return current;return{...current,floors:current.floors.map(floor=>{if(floor.floor!==context.floor)return floor;const completed=Math.max(0,floor.completed+delta),unconfirmed=Math.max(0,floor.unconfirmed-delta);return{...floor,completed,unconfirmed,progress:floor.total?Math.round(completed/floor.total*10000)/100:0}})}});setLocations(current=>current.map(location=>{if(location.locationCode!==context.locationCode)return location;const completed=Math.max(0,location.completed+delta),unconfirmed=Math.max(0,location.unconfirmed-delta);return{...location,completed,unconfirmed,progress:location.total?Math.round(completed/location.total*10000)/100:0}}))}
 
-    function AssetDetail({ asset, busy, onClose, onNormal }) {
-      if (!asset) return null;
-      const [label, cls] = resultBadge(asset.result);
-      return html`
-        <div className="overlay" onClick=${onClose}>
-          <section className="sheet-modal" onClick=${e => e.stopPropagation()}>
-            <div className="grabber"></div>
-            <div className="asset-head">
-              <div>
-                <h2 className="detail-title">${asset.name || '품명 미상'}</h2>
-                <div className="detail-number">${asset.newAssetNo || '-'} · Old ${asset.oldAssetNo || '-'}</div>
-              </div>
-              <span className=${'badge ' + cls}>${label}</span>
-            </div>
-            <div className="detail-table">
-              <div className="detail-row"><div className="detail-key">시스템 ID</div><div className="detail-value">${asset.systemId}</div></div>
-              <div className="detail-row"><div className="detail-key">규격</div><div className="detail-value">${asset.spec || '미확인'}</div></div>
-              <div className="detail-row"><div className="detail-key">등록 위치</div><div className="detail-value">${asset.originalFloor} > ${asset.originalSpaceName}</div></div>
-              ${asset.errorReviewId ? html`<div className="detail-row"><div className="detail-key">오류 검토</div><div className="detail-value">${asset.errorReviewId}</div></div>` : null}
-            </div>
-            ${asset.result === '미확인' ? html`
-              <button className="normal-btn" disabled=${busy} onClick=${onNormal}>${busy ? '저장 중…' : '✓ 정상 · 실물 확인'}</button>
-              <p className="section-help" style=${{ textAlign: 'center', marginTop: '10px' }}>실물과 등록 위치가 모두 맞을 때 누릅니다.</p>
-            ` : html`
-              <button className="secondary-btn" onClick=${onClose}>현재 상태: ${asset.result}</button>
-            `}
-          </section>
-        </div>
-      `;
-    }
+      async function submitInspection(action){if(!selectedAsset||!bootstrap?.activeSession)return;const beforeResult=selectedAsset.result;const context={locationCode:selectedLocation?.locationCode||'',floor:selectedLocation?.floor||selectedAsset.originalFloor};setBusy(true);setError('');try{const response=await api.applyInspectionAction({sessionId:bootstrap.activeSession.sessionId,recordId:selectedAsset.recordId,inspector:inspector.trim(),actionUuid:uuid(),...action});const updated=response.record;setAssets(current=>current.map(item=>item.recordId===updated.recordId?updated:item));setSelectedAsset(null);setBootstrap(current=>current?{...current,summary:response.summary}:current);adjustBuckets(beforeResult,updated.result,context);setLastUndo({recordId:updated.recordId,changeId:response.changeId,name:updated.name||updated.newAssetNo||updated.systemId,fromResult:beforeResult,toResult:updated.result,locationCode:context.locationCode,floor:context.floor});setToast(`${updated.name||'비품'} · ${updated.result} 저장`)}catch(err){setError(errorMessage(err))}finally{setBusy(false)}}
 
-    function BottomNav({ view, onHome, onField }) {
-      return html`
-        <nav className="bottom-nav">
-          <button className=${'nav-btn ' + (view !== 'home' ? 'active' : '')} onClick=${onField}><span>🏠</span>현장</button>
-          <button className="nav-btn" disabled><span>🔍</span>통합검색</button>
-          <button className="nav-btn" disabled><span>⚠</span>이슈</button>
-          <button className=${'nav-btn ' + (view === 'home' ? 'active' : '')} onClick=${onHome}><span>📊</span>현황</button>
-        </nav>
-      `;
-    }
+      async function undoLast(){if(!lastUndo||!bootstrap?.activeSession)return;setBusy(true);setError('');try{const response=await api.undoInspectionAction({sessionId:bootstrap.activeSession.sessionId,recordId:lastUndo.recordId,changeId:lastUndo.changeId,inspector:inspector.trim(),actionUuid:uuid()});const restored=response.record;setAssets(current=>current.map(item=>item.recordId===restored.recordId?restored:item));setBootstrap(current=>current?{...current,summary:response.summary}:current);adjustBuckets(lastUndo.toResult,restored.result,{locationCode:lastUndo.locationCode,floor:lastUndo.floor});setLastUndo(null);setToast(`↶ ${restored.name||'비품'} 작업 취소 완료`)}catch(err){setError(errorMessage(err))}finally{setBusy(false)}}
 
-    function App() {
-      const [bootstrap, setBootstrap] = useState(null);
-      const [view, setView] = useState('home');
-      const [inspector, setInspector] = useState(() => localStorage.getItem('inventoryInspector') || '');
-      const [selectedFloor, setSelectedFloor] = useState('');
-      const [locations, setLocations] = useState([]);
-      const [selectedLocation, setSelectedLocation] = useState(null);
-      const [assets, setAssets] = useState([]);
-      const [selectedAsset, setSelectedAsset] = useState(null);
-      const [filter, setFilter] = useState('pending');
-      const [search, setSearch] = useState('');
-      const [busy, setBusy] = useState(false);
-      const [loading, setLoading] = useState(true);
-      const [error, setError] = useState('');
-      const [toast, setToast] = useState('');
-      const [online, setOnline] = useState(navigator.onLine);
-
-      useEffect(() => {
-        const onOnline = () => setOnline(true);
-        const onOffline = () => setOnline(false);
-        window.addEventListener('online', onOnline);
-        window.addEventListener('offline', onOffline);
-        return () => {
-          window.removeEventListener('online', onOnline);
-          window.removeEventListener('offline', onOffline);
-        };
-      }, []);
-
-      useEffect(() => {
-        api.getBootstrapData()
-          .then(data => setBootstrap(data))
-          .catch(err => setError(errorMessage(err)))
-          .finally(() => setLoading(false));
-      }, []);
-
-      useEffect(() => {
-        if (inspector.trim()) localStorage.setItem('inventoryInspector', inspector.trim());
-      }, [inspector]);
-
-      useEffect(() => {
-        if (!toast) return;
-        const timer = setTimeout(() => setToast(''), 2200);
-        return () => clearTimeout(timer);
-      }, [toast]);
-
-      async function startSession() {
-        setBusy(true);
-        setError('');
-        try {
-          const data = await api.startInventorySession(inspector.trim());
-          setBootstrap(data);
-          setView('floors');
-          setToast(`${data.summary.total}개 비품 조사 준비 완료`);
-        } catch (err) {
-          setError(errorMessage(err));
-        } finally {
-          setBusy(false);
-        }
-      }
-
-      async function selectFloor(floorKey) {
-        if (!bootstrap?.activeSession) return;
-        setSelectedFloor(floorKey);
-        setLocations([]);
-        setLoading(true);
-        setError('');
-        setView('locations');
-        try {
-          const data = await api.getLocationsForFloor(bootstrap.activeSession.sessionId, floorKey);
-          setLocations(data || []);
-        } catch (err) {
-          setError(errorMessage(err));
-        } finally {
-          setLoading(false);
-        }
-      }
-
-      async function selectLocation(location) {
-        setSelectedLocation(location);
-        setAssets([]);
-        setSearch('');
-        setFilter('pending');
-        setLoading(true);
-        setError('');
-        setView('assets');
-        try {
-          const data = await api.getAssetsForLocation(bootstrap.activeSession.sessionId, location.locationCode);
-          setAssets(data || []);
-        } catch (err) {
-          setError(errorMessage(err));
-        } finally {
-          setLoading(false);
-        }
-      }
-
-      async function confirmNormal() {
-        if (!selectedAsset || !bootstrap?.activeSession) return;
-        const previous = selectedAsset.result;
-        setBusy(true);
-        setError('');
-        try {
-          const response = await api.markAssetNormal({
-            sessionId: bootstrap.activeSession.sessionId,
-            recordId: selectedAsset.recordId,
-            inspector: inspector.trim(),
-            actionUuid: uuid()
-          });
-          const updated = response.record;
-          setAssets(current => current.map(item => item.recordId === updated.recordId ? updated : item));
-          setSelectedAsset(null);
-          setBootstrap(current => {
-            if (!current) return current;
-            const delta = previous === '미확인' ? 1 : 0;
-            return {
-              ...current,
-              summary: response.summary,
-              floors: current.floors.map(floor => {
-                const targetFloor = selectedLocation?.floor;
-                if (!delta || floor.floor !== targetFloor) return floor;
-                const completed = floor.completed + 1;
-                const unconfirmed = Math.max(0, floor.unconfirmed - 1);
-                return { ...floor, completed, unconfirmed, progress: floor.total ? Math.round(completed / floor.total * 10000) / 100 : 0 };
-              })
-            };
-          });
-          if (previous === '미확인') {
-            setLocations(current => current.map(location => {
-              if (location.locationCode !== selectedLocation?.locationCode) return location;
-              const completed = location.completed + 1;
-              const unconfirmed = Math.max(0, location.unconfirmed - 1);
-              return { ...location, completed, unconfirmed, progress: location.total ? Math.round(completed / location.total * 10000) / 100 : 0 };
-            }));
-          }
-          setToast(`✓ ${updated.name} 정상 확인 저장`);
-        } catch (err) {
-          setError(errorMessage(err));
-        } finally {
-          setBusy(false);
-        }
-      }
-
-      function goBack() {
-        setError('');
-        if (selectedAsset) { setSelectedAsset(null); return; }
-        if (view === 'assets') setView('locations');
-        else if (view === 'locations') setView('floors');
-        else if (view === 'floors') setView('home');
-      }
-
-      function headerTitle() {
-        if (view === 'home') return '비품 전수조사';
-        if (view === 'floors') return '층 선택';
-        if (view === 'locations') return selectedFloor === '__REVIEW__' ? '위치 확인 필요' : selectedFloor;
-        if (view === 'assets') return selectedLocation?.spaceName || '비품 목록';
-        return '비품 전수조사';
-      }
-
-      if (loading && !bootstrap) {
-        return html`<div className="app"><${Header} view="home" title="비품 전수조사" online=${online} /><main><div className="spinner"></div><div className="empty">데이터를 불러오는 중입니다.</div></main></div>`;
-      }
-
-      return html`
-        <div className="app">
-          <${Header} view=${view} title=${headerTitle()} subtitle=${bootstrap?.activeSession?.sessionId || '강서청소년회관'} onBack=${goBack} online=${online} />
-          ${error ? html`<div style=${{ padding: '12px 16px 0' }}><div className="error-box">${error}</div></div>` : null}
-          ${view === 'home' ? html`<${Home} bootstrap=${bootstrap} inspector=${inspector} setInspector=${setInspector} onStart=${startSession} onContinue=${() => setView('floors')} busy=${busy} />` : null}
-          ${view === 'floors' ? html`<${Floors} bootstrap=${bootstrap} onSelectFloor=${selectFloor} />` : null}
-          ${view === 'locations' ? html`<${Locations} locations=${locations} loading=${loading} onSelectLocation=${selectLocation} />` : null}
-          ${view === 'assets' ? html`<${Assets} assets=${assets} loading=${loading} filter=${filter} setFilter=${setFilter} search=${search} setSearch=${setSearch} onSelectAsset=${setSelectedAsset} />` : null}
-          <${AssetDetail} asset=${selectedAsset} busy=${busy} onClose=${() => setSelectedAsset(null)} onNormal=${confirmNormal} />
-          ${bootstrap?.activeSession ? html`<${BottomNav} view=${view} onHome=${() => setView('home')} onField=${() => setView('floors')} />` : null}
-          ${toast ? html`<div className="toast">${toast}</div>` : null}
-        </div>
-      `;
-    }
-
-    ReactDOM.createRoot(document.getElementById('root')).render(html`<${App} />`);
+      function goBack(){setError('');if(selectedAsset){setSelectedAsset(null);return}if(view==='assets')setView('locations');else if(view==='locations')setView('floors');else if(view==='floors')setView('home')}
+      function headerTitle(){if(view==='home')return'비품 전수조사';if(view==='floors')return'층 선택';if(view==='locations')return selectedFloor==='__REVIEW__'?'위치 확인 필요':selectedFloor;if(view==='assets')return selectedLocation?.spaceName||'비품 목록';return'비품 전수조사'}
+      if(loading&&!bootstrap)return html`<div className="app"><${Header} view="home" title="비품 전수조사" online=${online}/><main><div className="spinner"></div><div className="empty">데이터를 불러오는 중입니다.</div></main></div>`;
+      return html`<div className="app"><${Header} view=${view} title=${headerTitle()} subtitle=${bootstrap?.activeSession?.sessionId||'강서청소년회관'} onBack=${goBack} online=${online}/>${error?html`<div style=${{padding:'12px 16px 0'}}><div className="error-box">${error}</div></div>`:null}${view==='home'?html`<${Home} bootstrap=${bootstrap} inspector=${inspector} setInspector=${setInspector} onStart=${startSession} onContinue=${()=>setView('floors')} busy=${busy}/>`:null}${view==='floors'?html`<${Floors} bootstrap=${bootstrap} onSelectFloor=${selectFloor}/>`:null}${view==='locations'?html`<${Locations} locations=${locations} loading=${loading} onSelectLocation=${selectLocation}/>`:null}${view==='assets'?html`<${Assets} assets=${assets} loading=${loading} filter=${filter} setFilter=${setFilter} search=${search} setSearch=${setSearch} onSelectAsset=${setSelectedAsset}/>`:null}<${AssetDetail} asset=${selectedAsset} busy=${busy} onClose=${()=>setSelectedAsset(null)} onSubmit=${submitInspection} selectableLocations=${selectableLocations} currentLocation=${selectedLocation}/>${bootstrap?.activeSession?html`<${BottomNav} view=${view} onHome=${()=>setView('home')} onField=${()=>setView('floors')}/>`:null}${lastUndo?html`<div className="undo-bar"><div className="undo-copy"><strong>${lastUndo.name}</strong>${lastUndo.toResult} 처리됨</div><button className="undo-btn" disabled=${busy} onClick=${undoLast}>↶ 취소</button><button className="undo-close" aria-label="닫기" onClick=${()=>setLastUndo(null)}>×</button></div>`:null}${toast?html`<div className="toast">${toast}</div>`:null}</div>`}
+    ReactDOM.createRoot(document.getElementById('root')).render(html`<${App}/>`);
   </script>
 </body>
 </html>
