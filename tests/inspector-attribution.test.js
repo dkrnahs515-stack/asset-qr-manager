@@ -23,3 +23,11 @@ test('server-side mutations reject blank inspector names instead of writing ып╕ь
   assert.match(inspection, /normalizeInspector_\(payload\.inspector\)/);
   assert.match(fieldOps, /normalizeInspector_\(payload\.inspector\)/);
 });
+
+test('photo upload fills a blank record inspector but never overwrites an existing inspector', () => {
+  const fieldOps = read('apps-script/FieldOps.gs');
+
+  assert.match(fieldOps, /var inspector = normalizeInspector_\(payload\.inspector\);/);
+  assert.match(fieldOps, /if \(!String\(record\.inspector \|\| ''\)\.trim\(\)\) record\.inspector = inspector;/);
+  assert.match(fieldOps, /changedBy: inspector/);
+});
