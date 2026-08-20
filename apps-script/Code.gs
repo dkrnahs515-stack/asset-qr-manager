@@ -715,9 +715,16 @@ function dateToIso_(value) {
   return isNaN(date.getTime()) ? String(value) : date.toISOString();
 }
 
-function normalizeInspector_(value) {
+function requireInspector_(value) {
   var text = String(value || '').trim();
-  return text || '미지정';
+  if (!text || text === '미지정') {
+    throw new Error('조사자 이름을 먼저 입력하세요.');
+  }
+  return text;
+}
+
+function normalizeInspector_(value) {
+  return requireInspector_(value);
 }
 
 function assertText_(value, label) {
