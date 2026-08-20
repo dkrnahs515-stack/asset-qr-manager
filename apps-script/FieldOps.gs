@@ -7,14 +7,11 @@ function getRoomInventoryData(sessionId, representativeLocationCode) {
 
   var records = readSessionRecords_(sessionId);
   var locationMap = buildLocationMap(readLocationRows_());
-  var registered = getAssetsForLocation(sessionId, representativeLocationCode);
-  var unregistered = records.filter(function (record) {
-    return record.targetType === '미등록비품' &&
-      fieldRepresentativeCode_(record.confirmedLocationCode, locationMap) === representativeLocationCode;
-  }).map(serializeRecord_);
+  var displayed = buildRoomDisplayRecords(records, representativeLocationCode, locationMap)
+    .map(serializeRecord_);
 
   return {
-    assets: registered.concat(unregistered),
+    assets: displayed,
     summary: summarizeLocationCloseout(records, representativeLocationCode, locationMap),
     closeout: findLatestRoomCloseout_(sessionId, representativeLocationCode)
   };

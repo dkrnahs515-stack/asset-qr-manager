@@ -122,6 +122,89 @@ function applyInspectionActionFromMobile(payload) {
   }
 }
 
+function reviseInspectionActionFromMobile(payload) {
+  payload = payload || {};
+  assertText_(payload.sessionId, '세션ID');
+  assertText_(payload.recordId, '기록ID');
+  assertText_(payload.type, '작업유형');
+  assertText_(payload.memo, '판정 수정 사유');
+  assertText_(payload.actionUuid, '작업UUID');
+
+  var allowed = ['정상확인', '위치변경', '상태이상', '미발견', '미확인복원'];
+  if (allowed.indexOf(payload.type) < 0) {
+    throw new Error('지원하지 않는 판정 수정 작업입니다: ' + payload.type);
+  }
+  if (payload.type === '상태이상' && INVENTORY_ISSUE_TYPES.indexOf(String(payload.issueType || '')) < 0) {
+    throw new Error('허용되지 않은 이상유형입니다.');
+  }
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var ss = getSpreadsheet_();
+    var recordSheet = getRequiredSheet_(ss, INVENTORY_CONFIG.SHEETS.RECORD);
+    var logSheet = getRequiredSheet_(ss, INVENTORY_CONFIG.SHEETS.CHANGE_LOG);
+    var duplicateLog = findChangeLogByActionUuid_(logSheet, payload.actionUuid);
+    if (duplicateLog) {
+      var duplicateRecord = findRecord_(recordSheet, payload.recordId).record;
+      return buildInspectionResponse_(duplicateRecord, payload.sessionId, duplicateLog.changeId, true);
+    }
+
+    var found = findRecord_(recordSheet, payload.recordId);
+    var record = found.record;
+    if (record.sessionId !== payload.sessionId) throw new Error('선택한 기록이 현재 세션에 속하지 않습니다.');
+    if (record.targetType !== '등록비품') throw new Error('등록비품만 판정을 수정할 수 있습니다.');
+    if (record.result === '미확인') throw new Error('미확인 비품은 최초 판정 기능을 사용하세요.');
+
+    var beforeSnapshot = createInspectionSnapshot(record);
+    var action = {
+      type: payload.type,
+      issueType: String(payload.issueType || '').trim(),
+      memo: String(payload.memo || '').trim(),
+      inspector: normalizeInspector_(payload.inspector),
+      actionUuid: payload.actionUuid,
+      now: new Date()
+    };
+
+    if (payload.type === '위치변경' || payload.type === '상태이상') {
+      var location = resolveSelectableLocation_(String(payload.locationCode || '').trim());
+      action.locationCode = location.locationCode;
+      action.floor = location.floor;
+      action.spaceName = location.spaceName;
+      var originalRepresentative = representativeLocationCode_(record.originalLocationCode);
+      var confirmedRepresentative = representativeLocationCode_(location.locationCode);
+      var sameRepresentative = originalRepresentative === confirmedRepresentative;
+      if (payload.type === '위치변경' && sameRepresentative) {
+        throw new Error('등록 위치와 같은 공간이면 정상으로 수정하세요.');
+      }
+      if (payload.type === '상태이상') action.locationMatches = sameRepresentative;
+    }
+
+    var previousResult = record.result || '미확인';
+    var nextRecord = reviseInspectionAction(record, action);
+    writeInspectionRecord_(recordSheet, found.rowNumber, nextRecord);
+
+    var changeId = appendChangeLog_(logSheet, {
+      sessionId: payload.sessionId,
+      recordId: payload.recordId,
+      systemId: record.systemId,
+      changedAt: action.now,
+      changedBy: action.inspector,
+      actionType: '판정수정',
+      targetField: '전수조사기록 상태',
+      beforeValue: JSON.stringify(beforeSnapshot),
+      afterValue: JSON.stringify(createInspectionSnapshot(nextRecord)),
+      reason: previousResult + ' → ' + nextRecord.result + ' · ' + action.memo,
+      actionUuid: payload.actionUuid
+    });
+
+    applySessionMetricDelta_(payload.sessionId, previousResult, nextRecord.result);
+    return buildInspectionResponse_(nextRecord, payload.sessionId, changeId, false);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function undoInspectionAction(payload) {
   payload = payload || {};
   assertText_(payload.sessionId, '세션ID');

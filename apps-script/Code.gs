@@ -666,6 +666,7 @@ function serializeRecord_(record) {
     recordId: record.recordId,
     sessionId: record.sessionId,
     targetType: record.targetType,
+    displayRole: record.displayRole || (record.targetType === '미등록비품' ? 'unregistered' : 'original'),
     systemId: record.systemId,
     oldAssetNo: record.oldAssetNo,
     newAssetNo: record.newAssetNo,

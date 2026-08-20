@@ -309,6 +309,49 @@ function representativeCode_(locationCode, locationMap) {
     : (locationCode || 'UNASSIGNED');
 }
 
+function buildRoomDisplayRecords(records, representativeLocationCode, locationMap) {
+  var target = String(representativeLocationCode || '');
+  var output = [];
+
+  (records || []).forEach(function (record) {
+    if (record.targetType === '미등록비품' || record.result === '미등록발견') {
+      if (representativeCode_(record.confirmedLocationCode, locationMap) !== target) return;
+      var unregistered = cloneRecord_(record);
+      unregistered.displayRole = 'unregistered';
+      output.push(unregistered);
+      return;
+    }
+    if (record.targetType !== '등록비품') return;
+
+    var originalRepresentative = representativeCode_(record.originalLocationCode, locationMap);
+    var confirmedRepresentative = representativeCode_(record.confirmedLocationCode, locationMap);
+    if (originalRepresentative === target) {
+      var original = cloneRecord_(record);
+      original.displayRole = 'original';
+      output.push(original);
+      return;
+    }
+
+    if (record.confirmedLocationCode && record.physicalConfirmed === 'Y' && confirmedRepresentative === target) {
+      var inbound = cloneRecord_(record);
+      inbound.displayRole = 'inbound';
+      output.push(inbound);
+    }
+  });
+
+  return output.sort(function (a, b) {
+    var aPending = a.result === '미확인' ? 0 : 1;
+    var bPending = b.result === '미확인' ? 0 : 1;
+    if (aPending !== bPending) return aPending - bPending;
+    var roleOrder = { original: 0, inbound: 1, unregistered: 2 };
+    var ar = roleOrder[a.displayRole] === undefined ? 9 : roleOrder[a.displayRole];
+    var br = roleOrder[b.displayRole] === undefined ? 9 : roleOrder[b.displayRole];
+    if (ar !== br) return ar - br;
+    return String(a.newAssetNo || a.oldAssetNo || a.tempAssetId || a.systemId || '')
+      .localeCompare(String(b.newAssetNo || b.oldAssetNo || b.tempAssetId || b.systemId || ''), 'ko');
+  });
+}
+
 function summarizeLocationCloseout(records, representativeLocationCode, locationMap) {
   var target = String(representativeLocationCode || '');
   var result = {
@@ -463,6 +506,50 @@ function applyInspectionAction(record, action) {
   throw new Error('지원하지 않는 작업유형입니다: ' + type);
 }
 
+function reviseInspectionAction(record, action) {
+  var source = record || {};
+  var input = action || {};
+  if (source.targetType !== '등록비품') {
+    throw new Error('등록비품만 판정을 수정할 수 있습니다.');
+  }
+  if (String(source.result || '미확인') === '미확인') {
+    throw new Error('미확인 비품은 최초 판정 기능을 사용하세요.');
+  }
+
+  var reason = String(input.memo || '').trim();
+  if (!reason) throw new Error('판정 수정 사유가 필요합니다.');
+  var type = String(input.type || '').trim();
+  var actionUuid = String(input.actionUuid || '').trim();
+  var inspector = String(input.inspector || '').trim() || '미지정';
+  var now = input.now || new Date();
+  if (!type) throw new Error('작업유형이 필요합니다.');
+  if (!actionUuid) throw new Error('작업UUID가 필요합니다.');
+
+  if (type === '미확인복원') {
+    var reset = cloneRecord_(source);
+    reset.confirmedLocationCode = '';
+    reset.confirmedFloor = '';
+    reset.confirmedSpaceName = '';
+    reset.result = '미확인';
+    reset.issueType = '';
+    reset.physicalConfirmed = 'N';
+    reset.locationMatches = '';
+    reset.labelStatus = '';
+    reset.fieldMemo = reason;
+    reset.inspector = inspector;
+    reset.lastModifiedAt = now;
+    reset.version = Number(reset.version || 0) + 1;
+    reset.lastActionUuid = actionUuid;
+    return reset;
+  }
+
+  var draft = cloneRecord_(source);
+  draft.result = '미확인';
+  var next = applyInspectionAction(draft, input);
+  next.firstInspectedAt = source.firstInspectedAt || next.firstInspectedAt;
+  return next;
+}
+
 function restoreInspectionSnapshot(record, snapshot, options) {
   var next = cloneRecord_(record || {});
   var before = snapshot || {};
@@ -492,8 +579,10 @@ if (typeof module !== 'undefined' && module.exports) {
     computeMetricDelta: computeMetricDelta,
     summarizeLocationCloseout: summarizeLocationCloseout,
     sortLocationBuckets: sortLocationBuckets,
+    buildRoomDisplayRecords: buildRoomDisplayRecords,
     createInspectionSnapshot: createInspectionSnapshot,
     applyInspectionAction: applyInspectionAction,
+    reviseInspectionAction: reviseInspectionAction,
     restoreInspectionSnapshot: restoreInspectionSnapshot
   };
 }
