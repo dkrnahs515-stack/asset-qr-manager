@@ -9,11 +9,47 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
-  test:
+  patch:
+    if: github.event_name == 'push' && github.ref_name == 'feature/inventory-mobile-mvp'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/inventory-mobile-mvp
+          fetch-depth: 0
+      - name: Apply revision and inbound patch
+        run: python .github/scripts/apply_revision_inbound.py
+      - name: Commit patch when files changed
+        shell: bash
+        run: |
+          if git diff --quiet -- apps-script/Core.js apps-script/Code.gs apps-script/FieldOps.gs apps-script/Inspection.gs apps-script/Index.html; then
+            echo "No patch changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps-script/Core.js apps-script/Code.gs apps-script/FieldOps.gs apps-script/Inspection.gs apps-script/Index.html
+          git diff --cached --check
+          git commit -m "feat: revise completed decisions and show inbound assets"
+          git push origin HEAD:feature/inventory-mobile-mvp
+
+  test:
+    needs: patch
+    if: always() && (github.event_name == 'pull_request' || needs.patch.result == 'success' || needs.patch.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout latest push branch
+        if: github.event_name == 'push'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Checkout pull request merge
+        if: github.event_name == 'pull_request'
         uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
