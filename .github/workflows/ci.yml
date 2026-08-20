@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   patch:
-    if: github.event_name == 'push' && github.ref_name == 'feature/inventory-mobile-mvp'
+    if: github.ref_name == 'feature/inventory-mobile-mvp' || github.head_ref == 'feature/inventory-mobile-mvp'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout feature branch
@@ -40,16 +40,16 @@ jobs:
 
   test:
     needs: patch
-    if: always() && (github.event_name == 'pull_request' || needs.patch.result == 'success' || needs.patch.result == 'skipped')
+    if: always() && (needs.patch.result == 'success' || needs.patch.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout latest push branch
-        if: github.event_name == 'push'
+      - name: Checkout latest feature branch
+        if: github.ref_name == 'feature/inventory-mobile-mvp' || github.head_ref == 'feature/inventory-mobile-mvp'
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
-      - name: Checkout pull request merge
-        if: github.event_name == 'pull_request'
+          ref: feature/inventory-mobile-mvp
+      - name: Checkout current ref
+        if: github.ref_name != 'feature/inventory-mobile-mvp' && github.head_ref != 'feature/inventory-mobile-mvp'
         uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
