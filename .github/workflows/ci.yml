@@ -23,7 +23,19 @@ jobs:
           ref: feature/inventory-mobile-mvp
           fetch-depth: 0
       - name: Apply revision and inbound patch
-        run: python .github/scripts/apply_revision_inbound.py
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/scripts/apply_revision_inbound.py')
+          text = path.read_text(encoding='utf-8')
+          old = r"\{.*?\n\}\n\nfunction AssetDetail"
+          new = r"\{.*?\n\nfunction AssetDetail"
+          if old not in text:
+              raise SystemExit('room regex compatibility target not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          python .github/scripts/apply_revision_inbound.py
       - name: Commit patch when files changed
         shell: bash
         run: |
