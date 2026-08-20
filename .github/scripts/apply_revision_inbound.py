@@ -1,0 +1,375 @@
+from pathlib import Path
+import re
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def read(path: str) -> str:
+    return (ROOT / path).read_text(encoding="utf-8")
+
+
+def write(path: str, text: str) -> None:
+    (ROOT / path).write_text(text, encoding="utf-8")
+
+
+def replace_once(text: str, old: str, new: str, label: str) -> str:
+    count = text.count(old)
+    if count != 1:
+        raise RuntimeError(f"{label}: expected one match, found {count}")
+    return text.replace(old, new, 1)
+
+
+def regex_once(text: str, pattern: str, replacement: str, label: str, flags: int = 0) -> str:
+    updated, count = re.subn(pattern, replacement, text, count=1, flags=flags)
+    if count != 1:
+        raise RuntimeError(f"{label}: expected one regex match, found {count}")
+    return updated
+
+
+# ---------------------------------------------------------------------------
+# Core.js: pure domain helpers
+# ---------------------------------------------------------------------------
+core_path = "apps-script/Core.js"
+core = read(core_path)
+
+if "function buildRoomDisplayRecords(" not in core:
+    marker = "function summarizeLocationCloseout(records, representativeLocationCode, locationMap) {"
+    helper = """function buildRoomDisplayRecords(records, representativeLocationCode, locationMap) {
+  var target = String(representativeLocationCode || '');
+  var output = [];
+
+  (records || []).forEach(function (record) {
+    if (record.targetType === '미등록비품' || record.result === '미등록발견') {
+      if (representativeCode_(record.confirmedLocationCode, locationMap) !== target) return;
+      var unregistered = cloneRecord_(record);
+      unregistered.displayRole = 'unregistered';
+      output.push(unregistered);
+      return;
+    }
+    if (record.targetType !== '등록비품') return;
+
+    var originalRepresentative = representativeCode_(record.originalLocationCode, locationMap);
+    var confirmedRepresentative = representativeCode_(record.confirmedLocationCode, locationMap);
+    if (originalRepresentative === target) {
+      var original = cloneRecord_(record);
+      original.displayRole = 'original';
+      output.push(original);
+      return;
+    }
+
+    if (record.confirmedLocationCode && record.physicalConfirmed === 'Y' && confirmedRepresentative === target) {
+      var inbound = cloneRecord_(record);
+      inbound.displayRole = 'inbound';
+      output.push(inbound);
+    }
+  });
+
+  return output.sort(function (a, b) {
+    var aPending = a.result === '미확인' ? 0 : 1;
+    var bPending = b.result === '미확인' ? 0 : 1;
+    if (aPending !== bPending) return aPending - bPending;
+    var roleOrder = { original: 0, inbound: 1, unregistered: 2 };
+    var ar = roleOrder[a.displayRole] === undefined ? 9 : roleOrder[a.displayRole];
+    var br = roleOrder[b.displayRole] === undefined ? 9 : roleOrder[b.displayRole];
+    if (ar !== br) return ar - br;
+    return String(a.newAssetNo || a.oldAssetNo || a.tempAssetId || a.systemId || '')
+      .localeCompare(String(b.newAssetNo || b.oldAssetNo || b.tempAssetId || b.systemId || ''), 'ko');
+  });
+}
+
+"""
+    core = replace_once(core, marker, helper + marker, "insert buildRoomDisplayRecords")
+
+if "function reviseInspectionAction(" not in core:
+    marker = "function restoreInspectionSnapshot(record, snapshot, options) {"
+    helper = """function reviseInspectionAction(record, action) {
+  var source = record || {};
+  var input = action || {};
+  if (source.targetType !== '등록비품') {
+    throw new Error('등록비품만 판정을 수정할 수 있습니다.');
+  }
+  if (String(source.result || '미확인') === '미확인') {
+    throw new Error('미확인 비품은 최초 판정 기능을 사용하세요.');
+  }
+
+  var reason = String(input.memo || '').trim();
+  if (!reason) throw new Error('판정 수정 사유가 필요합니다.');
+  var type = String(input.type || '').trim();
+  var actionUuid = String(input.actionUuid || '').trim();
+  var inspector = String(input.inspector || '').trim() || '미지정';
+  var now = input.now || new Date();
+  if (!type) throw new Error('작업유형이 필요합니다.');
+  if (!actionUuid) throw new Error('작업UUID가 필요합니다.');
+
+  if (type === '미확인복원') {
+    var reset = cloneRecord_(source);
+    reset.confirmedLocationCode = '';
+    reset.confirmedFloor = '';
+    reset.confirmedSpaceName = '';
+    reset.result = '미확인';
+    reset.issueType = '';
+    reset.physicalConfirmed = 'N';
+    reset.locationMatches = '';
+    reset.labelStatus = '';
+    reset.fieldMemo = reason;
+    reset.inspector = inspector;
+    reset.lastModifiedAt = now;
+    reset.version = Number(reset.version || 0) + 1;
+    reset.lastActionUuid = actionUuid;
+    return reset;
+  }
+
+  var draft = cloneRecord_(source);
+  draft.result = '미확인';
+  var next = applyInspectionAction(draft, input);
+  next.firstInspectedAt = source.firstInspectedAt || next.firstInspectedAt;
+  return next;
+}
+
+"""
+    core = replace_once(core, marker, helper + marker, "insert reviseInspectionAction")
+
+if "buildRoomDisplayRecords: buildRoomDisplayRecords" not in core:
+    core = replace_once(
+        core,
+        "    summarizeLocationCloseout: summarizeLocationCloseout,\n    sortLocationBuckets: sortLocationBuckets,\n    createInspectionSnapshot: createInspectionSnapshot,\n    applyInspectionAction: applyInspectionAction,",
+        "    summarizeLocationCloseout: summarizeLocationCloseout,\n    sortLocationBuckets: sortLocationBuckets,\n    buildRoomDisplayRecords: buildRoomDisplayRecords,\n    createInspectionSnapshot: createInspectionSnapshot,\n    applyInspectionAction: applyInspectionAction,\n    reviseInspectionAction: reviseInspectionAction,",
+        "export revision helpers",
+    )
+write(core_path, core)
+
+
+# ---------------------------------------------------------------------------
+# Code.gs: serialize display role
+# ---------------------------------------------------------------------------
+code_path = "apps-script/Code.gs"
+code = read(code_path)
+if "displayRole: record.displayRole" not in code:
+    code = replace_once(
+        code,
+        "    targetType: record.targetType,\n    systemId: record.systemId,",
+        "    targetType: record.targetType,\n    displayRole: record.displayRole || (record.targetType === '미등록비품' ? 'unregistered' : 'original'),\n    systemId: record.systemId,",
+        "serialize displayRole",
+    )
+write(code_path, code)
+
+
+# ---------------------------------------------------------------------------
+# FieldOps.gs: original + inbound + unregistered room projection
+# ---------------------------------------------------------------------------
+field_path = "apps-script/FieldOps.gs"
+field = read(field_path)
+if "var displayed = buildRoomDisplayRecords" not in field:
+    replacement = """function getRoomInventoryData(sessionId, representativeLocationCode) {
+  assertText_(sessionId, '세션ID');
+  assertText_(representativeLocationCode, '대표위치코드');
+
+  var records = readSessionRecords_(sessionId);
+  var locationMap = buildLocationMap(readLocationRows_());
+  var displayed = buildRoomDisplayRecords(records, representativeLocationCode, locationMap)
+    .map(serializeRecord_);
+
+  return {
+    assets: displayed,
+    summary: summarizeLocationCloseout(records, representativeLocationCode, locationMap),
+    closeout: findLatestRoomCloseout_(sessionId, representativeLocationCode)
+  };
+}
+
+function registerUnregisteredAsset"""
+    field = regex_once(
+        field,
+        r"function getRoomInventoryData\(sessionId, representativeLocationCode\) \{.*?\n\}\n\nfunction registerUnregisteredAsset",
+        replacement,
+        "replace room inventory projection",
+        re.S,
+    )
+write(field_path, field)
+
+
+# ---------------------------------------------------------------------------
+# Inspection.gs: audited revision endpoint
+# ---------------------------------------------------------------------------
+inspection_path = "apps-script/Inspection.gs"
+inspection = read(inspection_path)
+if "function reviseInspectionActionFromMobile(" not in inspection:
+    marker = "function undoInspectionAction(payload) {"
+    endpoint = """function reviseInspectionActionFromMobile(payload) {
+  payload = payload || {};
+  assertText_(payload.sessionId, '세션ID');
+  assertText_(payload.recordId, '기록ID');
+  assertText_(payload.type, '작업유형');
+  assertText_(payload.memo, '판정 수정 사유');
+  assertText_(payload.actionUuid, '작업UUID');
+
+  var allowed = ['정상확인', '위치변경', '상태이상', '미발견', '미확인복원'];
+  if (allowed.indexOf(payload.type) < 0) {
+    throw new Error('지원하지 않는 판정 수정 작업입니다: ' + payload.type);
+  }
+  if (payload.type === '상태이상' && INVENTORY_ISSUE_TYPES.indexOf(String(payload.issueType || '')) < 0) {
+    throw new Error('허용되지 않은 이상유형입니다.');
+  }
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var ss = getSpreadsheet_();
+    var recordSheet = getRequiredSheet_(ss, INVENTORY_CONFIG.SHEETS.RECORD);
+    var logSheet = getRequiredSheet_(ss, INVENTORY_CONFIG.SHEETS.CHANGE_LOG);
+    var duplicateLog = findChangeLogByActionUuid_(logSheet, payload.actionUuid);
+    if (duplicateLog) {
+      var duplicateRecord = findRecord_(recordSheet, payload.recordId).record;
+      return buildInspectionResponse_(duplicateRecord, payload.sessionId, duplicateLog.changeId, true);
+    }
+
+    var found = findRecord_(recordSheet, payload.recordId);
+    var record = found.record;
+    if (record.sessionId !== payload.sessionId) throw new Error('선택한 기록이 현재 세션에 속하지 않습니다.');
+    if (record.targetType !== '등록비품') throw new Error('등록비품만 판정을 수정할 수 있습니다.');
+    if (record.result === '미확인') throw new Error('미확인 비품은 최초 판정 기능을 사용하세요.');
+
+    var beforeSnapshot = createInspectionSnapshot(record);
+    var action = {
+      type: payload.type,
+      issueType: String(payload.issueType || '').trim(),
+      memo: String(payload.memo || '').trim(),
+      inspector: normalizeInspector_(payload.inspector),
+      actionUuid: payload.actionUuid,
+      now: new Date()
+    };
+
+    if (payload.type === '위치변경' || payload.type === '상태이상') {
+      var location = resolveSelectableLocation_(String(payload.locationCode || '').trim());
+      action.locationCode = location.locationCode;
+      action.floor = location.floor;
+      action.spaceName = location.spaceName;
+      var originalRepresentative = representativeLocationCode_(record.originalLocationCode);
+      var confirmedRepresentative = representativeLocationCode_(location.locationCode);
+      var sameRepresentative = originalRepresentative === confirmedRepresentative;
+      if (payload.type === '위치변경' && sameRepresentative) {
+        throw new Error('등록 위치와 같은 공간이면 정상으로 수정하세요.');
+      }
+      if (payload.type === '상태이상') action.locationMatches = sameRepresentative;
+    }
+
+    var previousResult = record.result || '미확인';
+    var nextRecord = reviseInspectionAction(record, action);
+    writeInspectionRecord_(recordSheet, found.rowNumber, nextRecord);
+
+    var changeId = appendChangeLog_(logSheet, {
+      sessionId: payload.sessionId,
+      recordId: payload.recordId,
+      systemId: record.systemId,
+      changedAt: action.now,
+      changedBy: action.inspector,
+      actionType: '판정수정',
+      targetField: '전수조사기록 상태',
+      beforeValue: JSON.stringify(beforeSnapshot),
+      afterValue: JSON.stringify(createInspectionSnapshot(nextRecord)),
+      reason: previousResult + ' → ' + nextRecord.result + ' · ' + action.memo,
+      actionUuid: payload.actionUuid
+    });
+
+    applySessionMetricDelta_(payload.sessionId, previousResult, nextRecord.result);
+    return buildInspectionResponse_(nextRecord, payload.sessionId, changeId, false);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+"""
+    inspection = replace_once(inspection, marker, endpoint + marker, "insert revision endpoint")
+write(inspection_path, inspection)
+
+
+# ---------------------------------------------------------------------------
+# Index.html: revision UI and inbound display
+# ---------------------------------------------------------------------------
+index_path = "apps-script/Index.html"
+index = read(index_path)
+
+if "reviseInspectionAction(payload)" not in index:
+    index = replace_once(
+        index,
+        "  applyInspectionAction(payload){return this.call('applyInspectionActionFromMobile',payload)},\n  undoInspectionAction(payload){return this.call('undoInspectionAction',payload)},",
+        "  applyInspectionAction(payload){return this.call('applyInspectionActionFromMobile',payload)},\n  reviseInspectionAction(payload){return this.call('reviseInspectionActionFromMobile',payload)},\n  undoInspectionAction(payload){return this.call('undoInspectionAction',payload)},",
+        "add revision client API",
+    )
+
+if "item.displayRole==='inbound'" not in index.split("function pct", 1)[0]:
+    index = replace_once(
+        index,
+        "function badgeFor(item){if(item.targetType==='미등록비품')return['미등록','temp'];if(item.result==='정상')return['정상','ok'];if(item.result==='미확인')return['미확인','pending'];if(item.result==='보류')return['보류','review'];return[item.result||'확인필요','issue']}",
+        "function badgeFor(item){if(item.displayRole==='inbound')return[`유입 · ${item.result||'확인'}`,'review'];if(item.targetType==='미등록비품')return['미등록','temp'];if(item.result==='정상')return['정상','ok'];if(item.result==='미확인')return['미확인','pending'];if(item.result==='보류')return['보류','review'];return[item.result||'확인필요','issue']}",
+        "show inbound badge",
+    )
+
+if "filter==='inbound'" not in index:
+    room_component = """function Room({roomData,loading,filter,setFilter,search,setSearch,onSelect,onAdd,onCloseRoom,searchRef}){
+  const items=roomData?.assets||[],summary=roomData?.summary||{};
+  const counts=useMemo(()=>({pending:items.filter(x=>x.displayRole!=='inbound'&&x.result==='미확인').length,issues:items.filter(x=>x.displayRole!=='inbound'&&['위치변경','상태이상','미발견'].includes(x.result)).length,unregistered:items.filter(x=>x.targetType==='미등록비품').length,inbound:items.filter(x=>x.displayRole==='inbound').length,completed:items.filter(x=>x.displayRole!=='inbound'&&x.targetType!=='미등록비품'&&x.result!=='미확인').length}),[items]);
+  const visible=useMemo(()=>{const q=search.trim().toLowerCase();const matchesFilter=x=>q?true:filter==='all'||(filter==='pending'&&x.displayRole!=='inbound'&&x.result==='미확인')||(filter==='issues'&&x.displayRole!=='inbound'&&['위치변경','상태이상','미발견'].includes(x.result))||(filter==='unregistered'&&x.targetType==='미등록비품')||(filter==='inbound'&&x.displayRole==='inbound')||(filter==='completed'&&x.displayRole!=='inbound'&&x.targetType!=='미등록비품'&&x.result!=='미확인');return items.filter(matchesFilter).filter(x=>!q||[x.systemId,x.tempAssetId,x.oldAssetNo,x.newAssetNo,x.name,x.spec,x.originalSpaceName,x.confirmedSpaceName].join(' ').toLowerCase().includes(q)).sort((a,b)=>(a.result==='미확인'?0:1)-(b.result==='미확인'?0:1)||(a.displayRole==='inbound'?1:0)-(b.displayRole==='inbound'?1:0)||String(a.newAssetNo||a.tempAssetId||a.systemId).localeCompare(String(b.newAssetNo||b.tempAssetId||b.systemId),'ko'))},[items,filter,search]);
+  return html`<main className="stack"><div className="room-summary"><div className="room-summary-inner"><div className="room-stats"><div><strong>${summary.completed||0}/${summary.total||0}</strong><br/><small>미확인 ${summary.unconfirmed||0} · 미등록 ${summary.unregisteredFound||0} · 유입 ${counts.inbound}</small></div>${roomData?.closeout?html`<span className="closed-pill">✓ 마감 기록</span>`:html`<span className="badge pending">${Number(pct(summary.completed,summary.total)).toFixed(0)}%</span>`}</div><div className="mini"><span style=${{width:`${pct(summary.completed,summary.total)}%`}}></span></div></div></div><div className="search"><span>⌕</span><input ref=${searchRef} className="input" value=${search} onInput=${e=>setSearch(e.target.value)} placeholder="비품번호·품명·규격 검색"/></div><div className="chips"><button className=${'chip '+(filter==='pending'?'active':'')} onClick=${()=>setFilter('pending')}>미확인 ${counts.pending}</button><button className=${'chip '+(filter==='issues'?'active':'')} onClick=${()=>setFilter('issues')}>이슈 ${counts.issues}</button><button className=${'chip '+(filter==='unregistered'?'active':'')} onClick=${()=>setFilter('unregistered')}>미등록 ${counts.unregistered}</button><button className=${'chip '+(filter==='inbound'?'active':'')} onClick=${()=>setFilter('inbound')}>유입 ${counts.inbound}</button><button className=${'chip '+(filter==='completed'?'active':'')} onClick=${()=>setFilter('completed')}>완료 ${counts.completed}</button><button className=${'chip '+(filter==='all'?'active':'')} onClick=${()=>setFilter('all')}>전체(완료 포함) ${items.length}</button></div>${loading?html`<div className="spinner"></div>`:html`<div className="stack">${visible.map(item=>{const[b,c]=badgeFor(item);const inbound=item.displayRole==='inbound';return html`<button className="asset-card" key=${item.recordId+'-'+(item.displayRole||'original')} onClick=${()=>onSelect(item)}><div className="row-head"><div><div className="name">${item.name||'품명 미상'}</div><div className="meta">${item.targetType==='미등록비품'?item.tempAssetId:(item.newAssetNo||item.oldAssetNo||item.systemId)}<br/>${item.spec||'규격 미확인'}${item.photoCount?` · 사진 ${item.photoCount}`:''}${inbound?html`<br/><b>유입: ${item.originalFloor} > ${item.originalSpaceName} → ${item.confirmedFloor} > ${item.confirmedSpaceName}</b>`:null}</div></div><span className=${'badge '+c}>${b}</span></div></button>`})}${!visible.length?html`<div className="empty">현재 필터에 표시할 비품이 없습니다.</div>`:null}</div>`}<div className="room-actions"><button className="add" onClick=${onAdd}>＋ 미등록 비품</button><button className="close-room" onClick=${onCloseRoom}>🚪 공간 마감</button></div></main>`}
+
+function AssetDetail"""
+    index = regex_once(
+        index,
+        r"function Room\(\{roomData,loading,filter,setFilter,search,setSearch,onSelect,onAdd,onCloseRoom,searchRef\}\)\{.*?\n\}\n\nfunction AssetDetail",
+        room_component,
+        "replace room component",
+        re.S,
+    )
+
+if "onRevise" not in index.split("function ActionModal", 1)[0]:
+    asset_component = """function AssetDetail({asset,busy,onClose,onNormal,onOpenAction,onPhoto,onRevise}){if(!asset)return null;const[b,c]=badgeFor(asset);const unreg=asset.targetType==='미등록비품';const inbound=asset.displayRole==='inbound';const completed=!unreg&&asset.result!=='미확인';return html`<div className="overlay" onClick=${onClose}><section className="modal" onClick=${e=>e.stopPropagation()}><div className="grab"></div><div className="row-head"><div><h2>${asset.name||'품명 미상'}</h2><div className="modal-sub">${unreg?asset.tempAssetId:`${asset.newAssetNo||'-'} · Old ${asset.oldAssetNo||'-'}`}</div></div><span className=${'badge '+c}>${b}</span></div>${inbound?html`<div className="notice">유입 비품 · 등록 위치 ${asset.originalFloor} > ${asset.originalSpaceName}에서 현재 ${asset.confirmedFloor} > ${asset.confirmedSpaceName}로 확인됐습니다.</div>`:null}<div className="detail-grid"><div className="detail-row"><span>규격</span><b>${asset.spec||'미확인'}</b></div><div className="detail-row"><span>${unreg?'발견 위치':'등록 위치'}</span><b>${unreg?`${asset.confirmedFloor} > ${asset.confirmedSpaceName}`:`${asset.originalFloor} > ${asset.originalSpaceName}`}</b></div>${completed&&asset.confirmedSpaceName?html`<div className="detail-row"><span>확인 위치</span><b>${asset.confirmedFloor} > ${asset.confirmedSpaceName}</b></div>`:null}<div className="detail-row"><span>사진</span><b>${asset.photoCount||0}장</b></div>${asset.fieldMemo?html`<div className="detail-row"><span>현장 메모</span><b>${asset.fieldMemo}</b></div>`:null}</div>${!unreg&&asset.result==='미확인'?html`<button className="btn green" disabled=${busy} onClick=${onNormal}>✓ 정상 · 실물 확인</button><div className="action-grid"><button className="loc" onClick=${()=>onOpenAction('위치변경')}>📍 위치 다름</button><button className="problem" onClick=${()=>onOpenAction('상태이상')}>⚠ 상태 이상</button><button className="missing" onClick=${()=>onOpenAction('미발견')}>🔎 못 찾음</button><button className="photo" onClick=${onPhoto}>📷 사진 추가</button></div>`:html`<div className="action-grid">${completed?html`<button className="loc" onClick=${onRevise}>✏ 판정 수정</button>`:null}<button className="photo" style=${completed?null:{gridColumn:'1 / -1'}} onClick=${onPhoto}>📷 현장 사진 추가</button></div>`}</section></div>`}
+
+function ActionModal"""
+    index = regex_once(
+        index,
+        r"function AssetDetail\(\{asset,busy,onClose,onNormal,onOpenAction,onPhoto\}\)\{.*?\n\nfunction ActionModal",
+        asset_component,
+        "replace asset detail component",
+        re.S,
+    )
+
+if "function RevisionModal(" not in index:
+    marker = "function PhotoField({photo,setPhoto,preview,setPreview})"
+    revision_modal = """function RevisionModal({asset,locations,busy,onClose,onSubmit}){const currentType=asset.result==='정상'?'정상확인':asset.result==='위치변경'?'위치변경':asset.result==='상태이상'?'상태이상':asset.result==='미발견'?'미발견':'미확인복원';const[type,setType]=useState(currentType),[loc,setLoc]=useState(asset.confirmedLocationCode||asset.originalLocationCode||''),[issue,setIssue]=useState(asset.issueType||''),[memo,setMemo]=useState('');const options=[['정상확인','정상'],['위치변경','위치변경'],['상태이상','상태이상'],['미발견','미발견'],['미확인복원','미확인 복원']];const issues=['파손','고장','수리필요','사용불가','불용검토','라벨없음','라벨훼손','번호불일치','정보수정필요','기타'];const needsLocation=type==='위치변경'||type==='상태이상';const submit=()=>onSubmit({type,locationCode:loc,issueType:issue,memo});return html`<div className="overlay" onClick=${onClose}><section className="modal" onClick=${e=>e.stopPropagation()}><div className="grab"></div><h2>✏ 판정 수정</h2><p className="modal-sub">${asset.name} · 현재 판정 ${asset.result}</p><div className="notice">기존 판정은 변경이력에 보존되고, 수정 사유와 수정자가 함께 기록됩니다.</div><div style=${{height:'12px'}}></div><div className="field"><label>변경할 판정</label><div className="issue-grid">${options.map(([value,label])=>html`<button className=${'issue-choice '+(type===value?'active':'')} onClick=${()=>setType(value)}>${label}</button>`)}</div></div>${needsLocation?html`<div><div style=${{height:'12px'}}></div><div className="field"><label>${type==='위치변경'?'실제 발견 위치':'실물 확인 위치'}</label><select className="select" value=${loc} onChange=${e=>setLoc(e.target.value)}><option value="">위치 선택</option>${locations.map(x=>html`<option value=${x.locationCode}>${x.floor} > ${x.spaceName}</option>`)}</select></div></div>`:null}${type==='상태이상'?html`<div><div style=${{height:'12px'}}></div><div className="field"><label>이상 유형</label><div className="issue-grid">${issues.map(x=>html`<button className=${'issue-choice '+(issue===x?'active':'')} onClick=${()=>setIssue(x)}>${x}</button>`)}</div></div></div>`:null}<div style=${{height:'12px'}}></div><div className="field"><label>수정 사유 *</label><textarea className="textarea" value=${memo} onInput=${e=>setMemo(e.target.value)} placeholder="예: 정상 처리 후 로비에서 다시 확인함"></textarea></div><div style=${{height:'12px'}}></div><button className="btn primary" disabled=${busy||!memo.trim()||(needsLocation&&!loc)||(type==='상태이상'&&!issue)} onClick=${submit}>${busy?'수정 중…':'판정 수정 저장'}</button></section></div>`}
+
+"""
+    index = replace_once(index, marker, revision_modal + marker, "insert revision modal")
+
+if "async function submitRevision(" not in index:
+    marker = "  async function undoLast()"
+    submit_revision = """  async function submitRevision(action){if(!selectedAsset||!selectedLocation)return;const from=selectedAsset.result;setBusy(true);setError('');try{const res=await api.reviseInspectionAction({sessionId:bootstrap.activeSession.sessionId,recordId:selectedAsset.recordId,inspector:inspector.trim(),actionUuid:uuid(),...action});const[freshRoom,freshBootstrap]=await Promise.all([api.getRoomInventoryData(bootstrap.activeSession.sessionId,selectedLocation.locationCode),api.getBootstrapData()]);setRoomData(freshRoom);setBootstrap(freshBootstrap);setLastUndo({recordId:res.record.recordId,changeId:res.changeId,name:res.record.name,toResult:res.record.result,fromResult:from,floor:selectedLocation.floor,locationCode:selectedLocation.locationCode});setSelectedAsset(null);setForm(null);setToast(`${res.record.name} · ${from} → ${res.record.result} 수정`)}catch(e){setError(errText(e))}finally{setBusy(false)}}
+"""
+    index = replace_once(index, marker, submit_revision + marker, "insert submitRevision")
+
+if "const freshBootstrap=await api.getBootstrapData();setBootstrap(freshBootstrap);if(selectedLocation)" not in index:
+    index = regex_once(
+        index,
+        r"^  async function undoLast\(\).*?$",
+        "  async function undoLast(){if(!lastUndo)return;setBusy(true);try{const res=await api.undoInspectionAction({sessionId:bootstrap.activeSession.sessionId,recordId:lastUndo.recordId,changeId:lastUndo.changeId,inspector:inspector.trim(),actionUuid:uuid()});const freshBootstrap=await api.getBootstrapData();setBootstrap(freshBootstrap);if(selectedLocation){setRoomData(await api.getRoomInventoryData(bootstrap.activeSession.sessionId,selectedLocation.locationCode))}setLastUndo(null);setToast(`${res.record.name} 작업 취소 완료`)}catch(e){setError(errText(e));setLastUndo(null)}finally{setBusy(false)}}",
+        "refresh after undo",
+        re.M,
+    )
+
+if "onRevise=${()=>setForm('revision')}" not in index:
+    index = replace_once(
+        index,
+        "onOpenAction=${setForm} onPhoto=${()=>setForm('photo')}/>",
+        "onOpenAction=${setForm} onPhoto=${()=>setForm('photo')} onRevise=${()=>setForm('revision')}/>",
+        "wire revision button",
+    )
+
+if "form==='revision'" not in index:
+    index = replace_once(
+        index,
+        "${form==='photo'&&selectedAsset?html`<${PhotoModal}",
+        "${form==='revision'&&selectedAsset?html`<${RevisionModal} asset=${selectedAsset} locations=${selectableLocations} busy=${busy} onClose=${()=>setForm(null)} onSubmit=${submitRevision}/>`:null}${form==='photo'&&selectedAsset?html`<${PhotoModal}",
+        "render revision modal",
+    )
+
+write(index_path, index)
+
+print("revision/inbound patch applied")
