@@ -10,14 +10,16 @@ test('active-session home requires an explicit current inspector before continui
   const html = read('apps-script/Index.html');
   assert.match(html, /현재 조사자/);
   assert.match(html, /disabled=\$\{busy\|\|!inspector\.trim\(\)\}[^>]*onClick=\$\{onContinue\}/);
+  assert.match(html, /bootstrap\?\.activeSession&&inspector\.trim\(\)/);
 });
 
-test('server-side field mutations reject blank inspector names instead of writing 미지정', () => {
+test('server-side mutations reject blank inspector names instead of writing 미지정', () => {
   const code = read('apps-script/Code.gs');
   const inspection = read('apps-script/Inspection.gs');
   const fieldOps = read('apps-script/FieldOps.gs');
 
   assert.match(code, /function requireInspector_\(value\)/);
-  assert.match(inspection, /requireInspector_\(payload\.inspector\)/);
-  assert.match(fieldOps, /requireInspector_\(payload\.inspector\)/);
+  assert.match(code, /function normalizeInspector_\(value\)\s*\{\s*return requireInspector_\(value\);\s*\}/);
+  assert.match(inspection, /normalizeInspector_\(payload\.inspector\)/);
+  assert.match(fieldOps, /normalizeInspector_\(payload\.inspector\)/);
 });
