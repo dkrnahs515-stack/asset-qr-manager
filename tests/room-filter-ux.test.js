@@ -7,8 +7,8 @@ const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'apps-script/Index.html'), 'utf8');
 
 // Search intentionally scans the full room inventory even when a status chip is active.
-test('room filters include an explicit completed-items view', () => {
-  assert.match(html, /completed:items\.filter\(x=>x\.targetType!==['"]미등록비품['"]&&x\.result!==['"]미확인['"]\)\.length/);
+test('room filters include an explicit completed-items view without double-counting inbound copies', () => {
+  assert.match(html, /completed:items\.filter\(x=>x\.displayRole!==['"]inbound['"]&&x\.targetType!==['"]미등록비품['"]&&x\.result!==['"]미확인['"]\)\.length/);
   assert.match(html, /filter===['"]completed['"]/);
   assert.match(html, />완료 \$\{counts\.completed\}</);
 });
