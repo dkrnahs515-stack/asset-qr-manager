@@ -164,6 +164,7 @@ function uploadInventoryPhoto(payload) {
     var record = found.record;
     if (record.sessionId !== payload.sessionId) throw new Error('사진을 추가할 기록이 현재 세션과 일치하지 않습니다.');
 
+    var inspector = normalizeInspector_(payload.inspector);
     var locationCode = record.confirmedLocationCode || record.originalLocationCode || '';
     var now = new Date();
     var savedPhoto = saveInventoryPhoto_(payload.photo, {
@@ -173,7 +174,7 @@ function uploadInventoryPhoto(payload) {
       tempAssetId: record.tempAssetId,
       photoType: String(payload.photoType),
       locationCode: locationCode,
-      inspector: normalizeInspector_(payload.inspector),
+      inspector: inspector,
       memo: payload.memo,
       takenAt: now
     });
@@ -182,6 +183,8 @@ function uploadInventoryPhoto(payload) {
       appendPhotoRow_(photoSheet, savedPhoto);
       var beforeCount = Number(record.photoCount || 0);
       record.photoCount = beforeCount + 1;
+      if (!String(record.inspector || '').trim()) record.inspector = inspector;
+      else if (record.inspector === '미지정') record.inspector = inspector;
       record.lastModifiedAt = now;
       record.version = Number(record.version || 0) + 1;
       record.lastActionUuid = payload.actionUuid;
@@ -192,7 +195,7 @@ function uploadInventoryPhoto(payload) {
         recordId: record.recordId,
         systemId: record.systemId,
         changedAt: now,
-        changedBy: normalizeInspector_(payload.inspector),
+        changedBy: inspector,
         actionType: '사진추가',
         targetField: '사진건수',
         beforeValue: String(beforeCount),
