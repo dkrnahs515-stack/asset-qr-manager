@@ -33,7 +33,7 @@ function getBootstrapData() {
   return buildBootstrapForSession_(active.sessionId);
 }
 
-function startInventorySession(inspector) {
+function startInventorySession(request) {
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
 
@@ -56,21 +56,26 @@ function startInventorySession(inspector) {
 
     var existingSessionIds = readColumnValuesByHeader_(sessionSheet, '세션ID');
     var year = new Date().getFullYear();
+    var sessionRequest = normalizeSessionStartRequest(request, year);
     var sessionId = makeSessionId(year, existingSessionIds);
     var now = new Date();
 
     var sessionRow = buildRowForHeaders_(getHeaders_(sessionSheet), {
       '세션ID': sessionId,
-      '조사명': year + '년 정기 전수조사',
+      '조사명': sessionRequest.displayName,
       '기준연도': year,
-      '조사유형': '정기',
+      '조사유형': sessionRequest.category,
+      '조사구분': sessionRequest.category,
+      '조사차수': sessionRequest.round,
+      '조사표기명': sessionRequest.displayName,
+      '조사목적': sessionRequest.purpose,
       '조사범위': '전체',
       '기준시점': now,
       '기준비품수': assets.length,
       '시작일시': now,
       '종료일시': '',
       '세션상태': '준비',
-      '생성자': normalizeInspector_(inspector),
+      '생성자': normalizeInspector_(sessionRequest.inspector),
       '완료건수': 0,
       '정상건수': 0,
       '위치변경건수': 0,
@@ -86,7 +91,13 @@ function startInventorySession(inspector) {
     sessionSheet.getRange(sessionSheet.getLastRow() + 1, 1, 1, sessionRow.length).setValues([sessionRow]);
 
     var errorMap = readErrorMap_(getRequiredSheet_(ss, INVENTORY_CONFIG.SHEETS.ERROR_REVIEW));
-    var records = buildInventoryRecords(sessionId, assets, errorMap);
+    var currentStateMap = ss.getSheetByName(INVENTORY_CONFIG.SHEETS.CURRENT_STATE)
+      ? readCurrentStateMap_(ss)
+      : {};
+    var baselineAssets = assets.map(function (asset) {
+      return selectInspectionBaseline(asset, currentStateMap[asset.systemId]);
+    });
+    var records = buildInventoryRecords(sessionId, baselineAssets, errorMap);
     var recordHeaders = getHeaders_(recordSheet);
     var rows = records.map(function (record) {
       return buildRecordRow_(recordHeaders, record);
