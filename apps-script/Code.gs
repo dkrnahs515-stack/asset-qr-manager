@@ -223,11 +223,15 @@ function markAssetNormal(payload) {
     });
 
     applySessionMetricDelta_(payload.sessionId, previousResult, '정상');
+    var currentStateSync = record.targetType === '등록비품' && record.systemId
+      ? safeRebuildCurrentStateForAsset_(record.systemId)
+      : null;
 
     return {
       duplicate: false,
       record: serializeRecord_(record),
-      summary: getSessionSummary_(payload.sessionId)
+      summary: getSessionSummary_(payload.sessionId),
+      currentStateSync: currentStateSync
     };
   } finally {
     lock.releaseLock();
