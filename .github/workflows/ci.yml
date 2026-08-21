@@ -12,13 +12,9 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: inventory-mvp-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
   patch:
-    if: github.event_name == 'push' && github.ref_name == 'feature/inventory-mobile-mvp' && contains(github.event.head_commit.message, 'chore: run asset number audit patch')
+    if: github.event_name == 'push' && github.ref_name == 'feature/inventory-mobile-mvp'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout feature branch
@@ -26,11 +22,15 @@ jobs:
         with:
           ref: feature/inventory-mobile-mvp
           fetch-depth: 0
-      - name: Apply asset-number and audit patch
+      - name: Apply asset-number and audit validation patch
         run: python .github/scripts/apply_asset_number_audit.py
-      - name: Commit patched files
+      - name: Commit production changes when needed
         shell: bash
         run: |
+          if git diff --quiet -- apps-script/Core.js apps-script/Code.gs apps-script/Inspection.gs; then
+            echo "No production patch changes required."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add apps-script/Core.js apps-script/Code.gs apps-script/Inspection.gs
@@ -43,13 +43,13 @@ jobs:
     if: always() && (github.event_name == 'pull_request' || needs.patch.result == 'success' || needs.patch.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout latest feature branch
-        if: github.event_name == 'push'
+      - name: Checkout latest feature branch after patch
+        if: github.event_name == 'push' && github.ref_name == 'feature/inventory-mobile-mvp'
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
-      - name: Checkout pull request merge
-        if: github.event_name == 'pull_request'
+          ref: feature/inventory-mobile-mvp
+      - name: Checkout event revision
+        if: github.event_name != 'push' || github.ref_name != 'feature/inventory-mobile-mvp'
         uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
