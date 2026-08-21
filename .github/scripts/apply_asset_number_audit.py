@@ -10,6 +10,12 @@ def replace_once(text, old, new, label):
     return text.replace(old, new, 1)
 
 
+def replace_if_missing(text, marker, old, new, label):
+    if marker in text:
+        return text
+    return replace_once(text, old, new, label)
+
+
 core_path = ROOT / "apps-script" / "Core.js"
 core = core_path.read_text(encoding="utf-8")
 
@@ -34,26 +40,38 @@ if "function normalizeAssetNumber(value)" not in core:
 
 function validateChangeLogPayload(change) {
   var input = change || {};
-  var required = [
+  var requiredText = [
     ['sessionId', '세션ID'],
-    ['recordId', '기록ID'],
-    ['changedAt', '변경일시'],
     ['changedBy', '변경자'],
     ['actionType', '작업유형'],
     ['targetField', '대상필드'],
-    ['beforeValue', '변경전값'],
-    ['afterValue', '변경후값'],
     ['reason', '변경사유'],
     ['actionUuid', '작업UUID']
   ];
 
-  required.forEach(function (entry) {
+  requiredText.forEach(function (entry) {
     var key = entry[0];
     var label = entry[1];
-    if (!Object.prototype.hasOwnProperty.call(input, key) || !String(input[key]).trim()) {
+    if (!Object.prototype.hasOwnProperty.call(input, key) || !String(input[key] || '').trim()) {
       throw new Error('변경이력 ' + label + ' 값이 필요합니다.');
     }
   });
+
+  if (!Object.prototype.hasOwnProperty.call(input, 'changedAt') || !input.changedAt || isNaN(new Date(input.changedAt).getTime())) {
+    throw new Error('변경이력 변경일시 값이 필요합니다.');
+  }
+  if (!Object.prototype.hasOwnProperty.call(input, 'beforeValue') || input.beforeValue === undefined || input.beforeValue === null) {
+    throw new Error('변경이력 변경전값 값이 필요합니다.');
+  }
+  if (!Object.prototype.hasOwnProperty.call(input, 'afterValue') || input.afterValue === undefined || input.afterValue === null) {
+    throw new Error('변경이력 변경후값 값이 필요합니다.');
+  }
+  if (!String(input.beforeValue).trim() && !String(input.afterValue).trim()) {
+    throw new Error('변경이력 변경전값 또는 변경후값 중 하나는 필요합니다.');
+  }
+  if (String(input.actionType) !== '공간마감' && !String(input.recordId || '').trim()) {
+    throw new Error('변경이력 기록ID 값이 필요합니다.');
+  }
   return input;
 }
 
@@ -64,6 +82,14 @@ function validateChangeLogPayload(change) {
         helper + "function representativeCode_(locationCode, locationMap) {",
         "insert core helpers",
     )
+
+core = replace_if_missing(
+    core,
+    "oldAssetNo: normalizeAssetNumber(asset.oldAssetNo)",
+    "      oldAssetNo: asset.oldAssetNo || '',",
+    "      oldAssetNo: normalizeAssetNumber(asset.oldAssetNo),",
+    "normalize snapshot old number",
+)
 
 if "normalizeAssetNumber: normalizeAssetNumber" not in core:
     core = replace_once(
@@ -77,29 +103,41 @@ core_path.write_text(core, encoding="utf-8")
 
 code_path = ROOT / "apps-script" / "Code.gs"
 code = code_path.read_text(encoding="utf-8")
-code = replace_once(
+code = replace_if_missing(
     code,
+    "oldAssetNo: normalizeAssetNumber(row[index['Old 비품번호']])",
     "      oldAssetNo: String(row[index['Old 비품번호']] || '').trim(),",
     "      oldAssetNo: normalizeAssetNumber(row[index['Old 비품번호']]),",
     "normalize asset master old number",
 )
-code = replace_once(
+code = replace_if_missing(
     code,
+    "'Old 비품번호': normalizeAssetNumber(record.oldAssetNo)",
+    "    'Old 비품번호': record.oldAssetNo,",
+    "    'Old 비품번호': normalizeAssetNumber(record.oldAssetNo),",
+    "normalize written old number",
+)
+code = replace_if_missing(
+    code,
+    "oldAssetNo: normalizeAssetNumber(value('Old 비품번호'))",
     "    oldAssetNo: String(value('Old 비품번호') || ''),",
-    "    oldAssetNo: normalizeAssetNumber(value('Old 비품번호')),",
+    "    oldAssetNo: normalizeAssetNumber(value('Old 비품번호')),
+",
     "normalize record old number",
 )
-code = replace_once(
+code = replace_if_missing(
     code,
+    "oldAssetNo: normalizeAssetNumber(record.oldAssetNo)",
     "    oldAssetNo: record.oldAssetNo,",
     "    oldAssetNo: normalizeAssetNumber(record.oldAssetNo),",
     "normalize serialized old number",
 )
+
 if "function appendChangeLog_(sheet, change) {\n  validateChangeLogPayload(change);" not in code:
     code = replace_once(
         code,
         "function appendChangeLog_(sheet, change) {\n  var headers = getHeaders_(sheet);",
-        "function appendChangeLog_(sheet, change) {\n  validateChangeLogPayload(change);\n  var headers = getHeaders_(sheet);",
+        "function appendChangeLog_(sheet, change) {\n  validateChangeLogPayload(change);\n  var headers = getHeaders_(sheet);\n  requireHeaders_(headers, [\n    '변경ID', '세션ID', '기록ID', '영구 시스템 ID', '변경일시', '변경자',\n    '작업유형', '대상필드', '변경전값', '변경후값', '변경사유', '작업UUID',\n    '이전변경ID', '취소여부', '동기화일시', '비고'\n  ], sheet.getName());",
         "validate every change log row",
     )
 code_path.write_text(code, encoding="utf-8")
