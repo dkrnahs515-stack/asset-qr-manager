@@ -1,8 +1,75 @@
-# QR 비품 관리 대장
+# 강서청소년회관 비품 관리 시스템
 
-GitHub Pages에 올려서 사용할 수 있는 정적 웹앱입니다. Firebase Firestore를 데이터베이스로 사용하고, Firebase Authentication 계정으로 로그인한 사용자만 비품 목록을 읽고 수정합니다.
+이 저장소에는 두 가지 구현이 함께 있습니다.
 
-## 주요 기능
+1. **Google Sheets 연동 모바일 전수조사 MVP** — 현재 개발 중인 주 구현
+2. **Firebase QR 비품관리 정적 앱** — 기존 구현, 보존 중
+
+## Google Sheets 모바일 전수조사 MVP
+
+`apps-script/` 폴더에 Google Sheets를 기준 DB로 사용하는 모바일 현장 전수조사 기능이 있습니다.
+
+### 목표
+
+스마트폰 하나로 기관을 이동하면서 아래 흐름을 처리합니다.
+
+```text
+전수조사 시작
+→ 비품마스터 전체 스냅샷 생성
+→ 층 선택
+→ 공간 선택
+→ 비품 선택
+→ 정상 · 실물 확인
+→ 전수조사기록/변경이력 저장
+→ 진행률 즉시 반영
+```
+
+### 현재 1차 MVP 구현 범위
+
+- React 18 모바일 UI
+- Google Apps Script HTML Service
+- Google Sheets 연동
+- 활성 전수조사 세션 생성/이어하기
+- 비품마스터 전체 일괄 스냅샷
+- 층/공간별 진행률
+- 공간별 비품 목록 및 검색
+- 미확인만 보기
+- 비품 상세보기
+- 정상 확인 1-Tap 처리
+- 변경이력 기록
+- actionUuid 기반 중복 요청 방지
+- Node 순수 로직 테스트
+
+상세 배포 및 검증 절차는 [`apps-script/README.md`](apps-script/README.md)를 참고합니다.
+
+### 신규 구조
+
+```text
+asset-qr-manager/
+├─ apps-script/
+│  ├─ Core.js
+│  ├─ Code.gs
+│  ├─ Index.html
+│  ├─ appsscript.json
+│  └─ README.md
+├─ tests/
+│  └─ core.test.js
+├─ docs/superpowers/
+│  ├─ specs/
+│  └─ plans/
+├─ package.json
+└─ .github/workflows/ci.yml
+```
+
+---
+
+# 기존 Firebase QR 비품 관리 대장
+
+루트의 `index.html`, `styles.css`, `app.js`, `firebase-config.js`, `firestore.rules`는 기존 Firebase 기반 정적 웹앱입니다. 신규 Google Sheets 전수조사 MVP가 안정화될 때까지 삭제하지 않습니다.
+
+기존 앱은 GitHub Pages에 올려서 사용할 수 있는 정적 웹앱이며 Firebase Firestore를 데이터베이스로 사용하고 Firebase Authentication 계정으로 로그인한 사용자만 비품 목록을 읽고 수정하도록 설계되었습니다.
+
+## 기존 주요 기능
 
 - 비품 등록/수정/삭제
 - 비품번호, 품명, 카테고리, 위치, 상태, 담당자, 구입일, 금액, 모델명, 시리얼번호, 비고 관리
@@ -14,20 +81,7 @@ GitHub Pages에 올려서 사용할 수 있는 정적 웹앱입니다. Firebase 
 - CSV 내보내기/가져오기
 - 수정 이력 `assetLogs` 컬렉션 기록
 
-## 파일 구조
-
-```text
-asset-qr-manager/
-├─ index.html
-├─ styles.css
-├─ app.js
-├─ firebase-config.js
-├─ firebase-config.example.js
-├─ firestore.rules
-└─ README.md
-```
-
-## Firebase 설정
+## 기존 Firebase 설정
 
 1. Firebase Console에서 프로젝트를 만듭니다.
 2. 웹 앱을 등록합니다.
@@ -37,17 +91,13 @@ asset-qr-manager/
 6. Firestore Database를 생성합니다.
 7. Firestore Rules에 `firestore.rules` 내용을 붙여 넣고 게시합니다.
 
-## GitHub Pages 배포
+## 기존 GitHub Pages 배포
 
-1. GitHub 저장소를 새로 만듭니다.
-2. 이 폴더의 파일을 저장소 루트에 업로드합니다.
-3. Settings > Pages > Branch를 `main` / root로 설정합니다.
-4. 배포된 주소로 접속합니다.
-5. QR 스캔은 카메라 권한 때문에 HTTPS 주소에서 안정적으로 작동합니다. GitHub Pages는 HTTPS를 제공합니다.
+1. Settings > Pages > Branch를 `main` / root로 설정합니다.
+2. 배포된 주소로 접속합니다.
+3. QR 스캔은 카메라 권한 때문에 HTTPS 주소에서 사용합니다.
 
-## CSV 가져오기 형식
-
-첫 줄 헤더는 아래와 같이 사용합니다.
+## 기존 CSV 가져오기 형식
 
 ```csv
 assetNo,name,category,status,location,manager,purchaseDate,price,model,serial,memo
@@ -55,9 +105,3 @@ GSY-2026-001,노트북,전산장비,사용중,3층 사무실,운영지원팀,202
 ```
 
 같은 `assetNo`가 이미 있으면 기존 비품을 업데이트하고, 없으면 새로 등록합니다.
-
-## 운영 팁
-
-- QR 라벨에는 웹주소와 비품 문서 ID가 들어갑니다. 비품번호를 나중에 바꿔도 기존 QR은 계속 작동합니다.
-- 실제 비품에는 `비품번호 + QR`을 함께 붙이면 스캔이 안 될 때도 수기 확인이 가능합니다.
-- 공개 저장소에 올릴 경우에도 Firestore Rules와 Authentication을 반드시 적용하세요.
