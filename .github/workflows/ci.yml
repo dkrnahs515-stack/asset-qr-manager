@@ -10,11 +10,47 @@ on:
       - main
       - feature/inventory-mobile-mvp
 
+permissions:
+  contents: write
+
 jobs:
-  test:
+  patch:
+    if: github.event_name == 'push' && github.ref_name == 'feature/asset-current-state'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout current-state branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/asset-current-state
+          fetch-depth: 0
+      - name: Apply idempotent current-state patches
+        run: python .github/scripts/apply_current_state_patches.py
+      - name: Commit production changes when needed
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No current-state patch changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps-script tests README.md 2>/dev/null || true
+          git diff --cached --check
+          git commit -m "feat: apply current-state integration patches"
+          git push origin HEAD:feature/asset-current-state
+
+  test:
+    needs: patch
+    if: always() && (github.event_name == 'pull_request' || needs.patch.result == 'success' || needs.patch.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout latest current-state branch after patch
+        if: github.event_name == 'push' && github.ref_name == 'feature/asset-current-state'
+        uses: actions/checkout@v4
+        with:
+          ref: feature/asset-current-state
+      - name: Checkout event revision
+        if: github.event_name != 'push' || github.ref_name != 'feature/asset-current-state'
         uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
