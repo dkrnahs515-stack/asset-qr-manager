@@ -117,10 +117,10 @@ test('repair endpoint validates one asset and performs a locked rebuild', () => 
 test('README documents exact Apps Script mappings and one-time migration order', () => {
   const readme = read('README.md');
   for (const mapping of [
-    'apps-script/CurrentStateCore.js → CurrentStateCore.gs',
-    'apps-script/CurrentState.gs → CurrentState.gs',
-    'apps-script/SchemaSetup.gs → SchemaSetup.gs'
-  ]) assert.ok(readme.includes(mapping), `missing mapping: ${mapping}`);
+    /apps-script\/CurrentStateCore\.js\s+→\s+CurrentStateCore\.gs/,
+    /apps-script\/CurrentState\.gs\s+→\s+CurrentState\.gs/,
+    /apps-script\/SchemaSetup\.gs\s+→\s+SchemaSetup\.gs/
+  ]) assert.match(readme, mapping);
 
   const ordered = [
     'installAssetQrSchema()',
