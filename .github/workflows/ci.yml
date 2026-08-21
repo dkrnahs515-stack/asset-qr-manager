@@ -49,4 +49,6 @@ jobs:
             exit 0
           fi
           git commit -m "feat: integrate Script Property runtime selection"
+          git fetch origin feature/apps-script-runtime-environments
+          git rebase origin/feature/apps-script-runtime-environments
           git push origin HEAD:feature/apps-script-runtime-environments
