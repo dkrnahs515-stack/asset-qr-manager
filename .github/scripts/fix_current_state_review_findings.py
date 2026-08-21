@@ -14,8 +14,7 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 core_path = ROOT / "apps-script" / "CurrentStateCore.js"
 core = core_path.read_text(encoding="utf-8")
 
-helper_marker = """function isUsableInspectionRecord_(record) {
-"""
+helper_marker = "function isUsableInspectionRecord_(record) {\n"
 helpers = """function resolveSessionStartedAt_(record, sessionsById, judgedAt) {
   var session = (sessionsById || {})[record && record.sessionId] || {};
   var startedAt = asComparableTime_(session.startedAt || '');
@@ -31,7 +30,12 @@ function normalizeMasterApplied_(value) {
 
 """
 if "function resolveSessionStartedAt_(" not in core:
-    core = replace_once(core, helper_marker, helpers + helper_marker, "insert chronology and vocabulary helpers")
+    core = replace_once(
+        core,
+        helper_marker,
+        helpers + helper_marker,
+        "insert chronology and vocabulary helpers",
+    )
 
 old_map = """      return {
         record: record,
@@ -69,12 +73,15 @@ new_sort = """    .sort(function (a, b) {
 if "var sessionDifference = a.sessionStartedAt" not in core:
     core = replace_once(core, old_sort, new_sort, "sort by session chronology")
 
-core = replace_once(
-    core,
-    "    state.masterApplied = record.masterApplied || 'N';\n",
-    "    state.masterApplied = normalizeMasterApplied_(record.masterApplied);\n",
-    "normalize master-applied vocabulary",
-)
+old_master_applied = "    state.masterApplied = record.masterApplied || 'N';\n"
+new_master_applied = "    state.masterApplied = normalizeMasterApplied_(record.masterApplied);\n"
+if new_master_applied not in core:
+    core = replace_once(
+        core,
+        old_master_applied,
+        new_master_applied,
+        "normalize master-applied vocabulary",
+    )
 
 old_detail = """    if (Object.prototype.hasOwnProperty.call(record, 'confirmedDetailLocation')) {
       state.currentDetailLocation = record.confirmedDetailLocation || '';
@@ -88,7 +95,14 @@ new_detail = """    if (Object.prototype.hasOwnProperty.call(record, 'confirmedD
     }
     state.locationSource = state.masterApplied === '반영완료' ? '관리자반영' : '전수조사';
 """
-core = replace_once(core, old_detail, new_detail, "clear stale detail location and use normalized source")
+if "state.locationSource = state.masterApplied === '반영완료'" not in core:
+    core = replace_once(
+        core,
+        old_detail,
+        new_detail,
+        "clear stale detail location and use normalized source",
+    )
+
 core_path.write_text(core, encoding="utf-8")
 
 
@@ -106,7 +120,13 @@ new_state_map = """  readAllCurrentStates_(ss || getSpreadsheet_()).forEach(func
     map[state.systemId] = state;
   });
 """
-state = replace_once(state, old_state_map, new_state_map, "reject duplicate current-state IDs")
+if "if (map[state.systemId]) {" not in state:
+    state = replace_once(
+        state,
+        old_state_map,
+        new_state_map,
+        "reject duplicate current-state IDs",
+    )
 state_path.write_text(state, encoding="utf-8")
 
 
@@ -121,9 +141,23 @@ baseline_block = """    var errorMap = readErrorMap_(getRequiredSheet_(ss, INVEN
       return selectInspectionBaseline(asset, currentStateMap[asset.systemId]);
     });
 """
-code = replace_once(code, baseline_block, "", "remove late baseline block")
-insert_marker = "    var sessionRow = buildRowForHeaders_(getHeaders_(sessionSheet), {\n"
-code = replace_once(code, insert_marker, baseline_block + "\n" + insert_marker, "move baseline validation before session write")
+session_row_marker = "    var sessionRow = buildRowForHeaders_(getHeaders_(sessionSheet), {\n"
+session_write_marker = "    sessionSheet.getRange(sessionSheet.getLastRow() + 1, 1, 1, sessionRow.length).setValues([sessionRow]);\n"
+
+baseline_at = code.find("    var errorMap = readErrorMap_(")
+session_row_at = code.find(session_row_marker)
+session_write_at = code.find(session_write_marker)
+if baseline_at < 0 or session_row_at < 0 or session_write_at < 0:
+    raise RuntimeError("move baseline validation: required marker missing")
+if baseline_at > session_write_at:
+    code = replace_once(code, baseline_block, "", "remove late baseline block")
+    code = replace_once(
+        code,
+        session_row_marker,
+        baseline_block + "\n" + session_row_marker,
+        "move baseline validation before session write",
+    )
+
 code_path.write_text(code, encoding="utf-8")
 
 print("current-state review findings patched")
