@@ -6,7 +6,10 @@ var INVENTORY_CONFIG = {
     ERROR_REVIEW: '오류검토',
     SESSION: '전수조사세션',
     RECORD: '전수조사기록',
-    CHANGE_LOG: '변경이력'
+    CHANGE_LOG: '변경이력',
+    CURRENT_STATE: '비품현재상태',
+    QR_ISSUE: 'QR발급관리',
+    LABEL_SETTINGS: '라벨설정'
   }
 };
 
