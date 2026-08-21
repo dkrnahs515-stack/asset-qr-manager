@@ -9,76 +9,15 @@ on:
     branches:
       - main
 
-permissions:
-  contents: write
-
 jobs:
-  patch:
-    if: github.event_name == 'push' && github.ref_name == 'feature/inventory-mobile-mvp'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout feature branch
-        uses: actions/checkout@v4
-        with:
-          ref: feature/inventory-mobile-mvp
-          fetch-depth: 0
-      - name: Apply asset-number and audit validation patch
-        run: python .github/scripts/apply_asset_number_audit.py
-      - name: Commit production changes when needed
-        shell: bash
-        run: |
-          if git diff --quiet -- apps-script/Core.js apps-script/Code.gs apps-script/Inspection.gs; then
-            echo "No production patch changes required."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps-script/Core.js apps-script/Code.gs apps-script/Inspection.gs
-          git diff --cached --check
-          git commit -m "fix: normalize asset numbers and validate audit logs"
-          git push origin HEAD:feature/inventory-mobile-mvp
-
   test:
-    needs: patch
-    if: always() && (github.event_name == 'pull_request' || needs.patch.result == 'success' || needs.patch.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout latest feature branch after patch
-        if: github.event_name == 'push' && github.ref_name == 'feature/inventory-mobile-mvp'
-        uses: actions/checkout@v4
-        with:
-          ref: feature/inventory-mobile-mvp
-          fetch-depth: 0
-      - name: Checkout event revision
-        if: github.event_name != 'push' || github.ref_name != 'feature/inventory-mobile-mvp'
+      - name: Checkout
         uses: actions/checkout@v4
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Run tests and capture evidence
-        shell: bash
-        run: |
-          set -o pipefail
-          npm test | tee /tmp/inventory-test-output.txt
-      - name: Commit fresh verification report
-        if: github.event_name == 'push' && github.ref_name == 'feature/inventory-mobile-mvp'
-        shell: bash
-        run: |
-          mkdir -p ci
-          TESTED_SHA=$(git rev-parse HEAD)
-          {
-            echo "status=success"
-            echo "command=npm test"
-            echo "tested_sha=$TESTED_SHA"
-            grep -E '^# (tests|pass|fail|cancelled|skipped|todo) ' /tmp/inventory-test-output.txt
-          } > ci/audit-verification.txt
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ci/audit-verification.txt
-          if git diff --cached --quiet; then
-            echo "Verification report unchanged."
-            exit 0
-          fi
-          git commit -m "ci: record audit validation test evidence"
-          git push origin HEAD:feature/inventory-mobile-mvp
+      - name: Run tests
+        run: npm test
