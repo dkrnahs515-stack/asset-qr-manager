@@ -490,3 +490,14 @@ function auditCurrentState() {
       !extraIds.length && !syncErrorIds.length
   };
 }
+
+function repairCurrentState(systemId) {
+  assertText_(systemId, '영구 시스템 ID');
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    return rebuildCurrentStateForAsset_(systemId);
+  } finally {
+    lock.releaseLock();
+  }
+}
