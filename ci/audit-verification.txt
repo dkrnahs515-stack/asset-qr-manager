@@ -1,0 +1,9 @@
+status=success
+command=npm test
+tested_sha=1375c8de152d2f970b05976b895e5405ae15a3c8
+# tests 33
+# pass 33
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
