@@ -79,13 +79,12 @@ function installAssetQrSchema() {
 
 function ensureSheetSchema_(ss, sheetName, desiredHeaders, report) {
   var sheet = ss.getSheetByName(sheetName);
-  var created = false;
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
-    created = true;
     report.createdSheets.push(sheetName);
   }
 
+  ensureSheetCapacity_(sheet, desiredHeaders.length);
   var existingHeaders = readSchemaHeaders_(sheet);
   var missingHeaders = desiredHeaders.filter(function (header) {
     return existingHeaders.indexOf(header) < 0;
@@ -95,24 +94,27 @@ function ensureSheetSchema_(ss, sheetName, desiredHeaders, report) {
     sheet.getRange(1, 1, 1, desiredHeaders.length).setValues([desiredHeaders]);
     missingHeaders = desiredHeaders.slice();
   } else if (missingHeaders.length) {
-    sheet.getRange(1, existingHeaders.length + 1, 1, missingHeaders.length).setValues([missingHeaders]);
+    ensureSheetCapacity_(sheet, sheet.getLastColumn() + missingHeaders.length);
+    sheet.getRange(1, sheet.getLastColumn() + 1, 1, missingHeaders.length).setValues([missingHeaders]);
   }
 
   report.addedHeaders[sheetName] = missingHeaders.slice();
   sheet.setFrozenRows(1);
   applySchemaValidations_(sheet, sheetName);
-
-  if (created && sheet.getMaxColumns() < desiredHeaders.length) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), desiredHeaders.length - sheet.getMaxColumns());
-  }
   return sheet;
+}
+
+function ensureSheetCapacity_(sheet, requiredColumns) {
+  var missingColumns = Math.max(0, Number(requiredColumns || 0) - sheet.getMaxColumns());
+  if (missingColumns > 0) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), missingColumns);
+  }
 }
 
 function readSchemaHeaders_(sheet) {
   if (sheet.getLastRow() < 1 || sheet.getLastColumn() < 1) return [];
   return sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
-    .map(function (value) { return String(value || '').trim(); })
-    .filter(function (value) { return !!value; });
+    .map(function (value) { return String(value || '').trim(); });
 }
 
 function applySchemaValidations_(sheet, sheetName) {
@@ -178,7 +180,8 @@ function ensureSessionMetadataHeaders_(sheet, report) {
     return existingHeaders.indexOf(header) < 0;
   });
   if (missingHeaders.length) {
-    sheet.getRange(1, existingHeaders.length + 1, 1, missingHeaders.length).setValues([missingHeaders]);
+    ensureSheetCapacity_(sheet, sheet.getLastColumn() + missingHeaders.length);
+    sheet.getRange(1, sheet.getLastColumn() + 1, 1, missingHeaders.length).setValues([missingHeaders]);
   }
   report.addedHeaders['전수조사세션'] = missingHeaders;
   sheet.setFrozenRows(1);
