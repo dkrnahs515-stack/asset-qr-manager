@@ -31,6 +31,13 @@ test('sheet lookups use exact key matching and current-state upsert is keyed by 
   assert.match(source, /'영구 시스템 ID'/);
 });
 
+test('current-state map rejects duplicate permanent IDs instead of choosing an arbitrary row', () => {
+  const source = read('apps-script/CurrentState.gs');
+  const body = functionBody(source, 'readCurrentStateMap_');
+  assert.match(body, /if \(map\[state\.systemId\]\)/);
+  assert.match(body, /throw new Error\('비품현재상태 영구 시스템 ID 중복:/);
+});
+
 test('judgment timestamps ignore invalid and cancelled logs but include revision and undo', () => {
   const source = read('apps-script/CurrentState.gs');
   for (const action of ['정상확인', '위치변경', '상태이상', '미발견', '보류', '판정수정', '작업취소']) {
