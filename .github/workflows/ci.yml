@@ -4,10 +4,11 @@ on:
   push:
     branches:
       - main
-      - feature/inventory-mobile-mvp
+      - 'feature/**'
   pull_request:
     branches:
       - main
+      - feature/inventory-mobile-mvp
 
 jobs:
   test:
