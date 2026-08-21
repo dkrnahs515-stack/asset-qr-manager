@@ -45,6 +45,19 @@ test('schema installer is locked, idempotent, and preserves existing settings', 
   assert.doesNotMatch(source, /clearContents\(/);
 });
 
+test('schema expands the sheet grid before writing 28 headers and preserves physical header positions', () => {
+  const source = read('apps-script/SchemaSetup.gs');
+  assert.match(source, /function ensureSheetCapacity_\(/);
+  const body = source.split('function ensureSheetSchema_(')[1].split('\nfunction ')[0];
+  assert.ok(
+    body.indexOf('ensureSheetCapacity_') >= 0 && body.indexOf('ensureSheetCapacity_') < body.indexOf('setValues'),
+    'grid capacity must be ensured before writing headers'
+  );
+  assert.match(body, /sheet\.getLastColumn\(\) \+ 1/);
+  const reader = source.split('function readSchemaHeaders_(')[1].split('\nfunction ')[0];
+  assert.doesNotMatch(reader, /\.filter\(/, 'header reader must not collapse blank physical columns');
+});
+
 test('label settings include approved managers and exact Formtec defaults', () => {
   const source = read('apps-script/SchemaSetup.gs');
   for (const required of [
