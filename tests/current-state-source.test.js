@@ -6,6 +6,15 @@ function read(path) {
   return fs.readFileSync(path, 'utf8');
 }
 
+function functionBody(source, name) {
+  const marker = `function ${name}(`;
+  const start = source.indexOf(marker);
+  assert.ok(start >= 0, `missing function ${name}`);
+  const tail = source.slice(start + marker.length);
+  const next = tail.indexOf('\nfunction ');
+  return next >= 0 ? tail.slice(0, next) : tail;
+}
+
 test('current-state service exposes single, safe, full rebuild, and audit entry points', () => {
   const source = read('apps-script/CurrentState.gs');
   assert.match(source, /function rebuildCurrentStateForAsset_\(systemId\)/);
@@ -33,12 +42,12 @@ test('judgment timestamps ignore invalid and cancelled logs but include revision
 
 test('safe rebuild preserves source data and records an explicit derived-state sync error', () => {
   const source = read('apps-script/CurrentState.gs');
-  const body = source.split('function safeRebuildCurrentStateForAsset_(')[1].split('\nfunction ')[0];
+  const body = functionBody(source, 'safeRebuildCurrentStateForAsset_');
   assert.match(body, /rebuildCurrentStateForAsset_\(systemId\)/);
   assert.match(body, /markCurrentStateSyncError_\(systemId/);
   assert.match(body, /ok: false/);
 
-  const errorBody = source.split('function markCurrentStateSyncError_(')[1].split('\nfunction ')[0];
+  const errorBody = functionBody(source, 'markCurrentStateSyncError_');
   assert.match(errorBody, /syncStatus = '오류'/);
   assert.match(errorBody, /syncError/);
   assert.doesNotMatch(errorBody, /deleteRow\(/);
@@ -46,16 +55,52 @@ test('safe rebuild preserves source data and records an explicit derived-state s
 
 test('full rebuild and repair-grade audit are locked and report all integrity classes', () => {
   const source = read('apps-script/CurrentState.gs');
-  const rebuild = source.split('function rebuildAllCurrentStates()')[1].split('\nfunction ')[0];
+  const rebuild = functionBody(source, 'rebuildAllCurrentStates');
   assert.match(rebuild, /LockService\.getScriptLock\(\)/);
   assert.match(rebuild, /expected/);
   assert.match(rebuild, /succeeded/);
   assert.match(rebuild, /failed/);
 
-  const audit = source.split('function auditCurrentState()')[1].split('\nfunction ')[0];
+  const audit = functionBody(source, 'auditCurrentState');
   for (const field of ['registeredCount', 'stateCount', 'duplicateIds', 'missingIds', 'extraIds', 'syncErrorIds', 'expectedCountMatches']) {
     assert.ok(audit.includes(field), `audit report missing: ${field}`);
   }
+});
+
+test('all inspection judgment mutations rebuild derived state only after source and audit writes', () => {
+  const inspection = read('apps-script/Inspection.gs');
+  for (const name of ['applyInspectionActionFromMobile', 'reviseInspectionActionFromMobile', 'undoInspectionAction']) {
+    const body = functionBody(inspection, name);
+    assert.match(body, /safeRebuildCurrentStateForAsset_\((?:record|nextRecord|restored)\.systemId\)/, `${name} must rebuild current state`);
+    const logAt = body.lastIndexOf('appendChangeLog_');
+    const metricAt = body.lastIndexOf('applySessionMetricDelta_');
+    const syncAt = body.lastIndexOf('safeRebuildCurrentStateForAsset_');
+    assert.ok(logAt >= 0 && metricAt >= 0 && syncAt > logAt && syncAt > metricAt,
+      `${name} must synchronize only after change-log and metric writes`);
+  }
+});
+
+test('inspection responses expose non-rolling-back current-state sync status', () => {
+  const inspection = read('apps-script/Inspection.gs');
+  const body = functionBody(inspection, 'buildInspectionResponse_');
+  assert.match(inspection, /function buildInspectionResponse_\(record, sessionId, changeId, duplicate, currentStateSync\)/);
+  assert.match(body, /currentStateSync:\s*currentStateSync \|\| null/);
+});
+
+test('legacy normal endpoint synchronizes after its audit and metric writes', () => {
+  const code = read('apps-script/Code.gs');
+  const body = functionBody(code, 'markAssetNormal');
+  const logAt = body.lastIndexOf('appendChangeLog_');
+  const metricAt = body.lastIndexOf('applySessionMetricDelta_');
+  const syncAt = body.lastIndexOf('safeRebuildCurrentStateForAsset_');
+  assert.ok(logAt >= 0 && metricAt >= 0 && syncAt > logAt && syncAt > metricAt);
+  assert.match(body, /currentStateSync:\s*currentStateSync/);
+});
+
+test('photo-only evidence does not change judgment-derived current state', () => {
+  const fieldOps = read('apps-script/FieldOps.gs');
+  const uploadBody = functionBody(fieldOps, 'uploadInventoryPhoto');
+  assert.doesNotMatch(uploadBody, /safeRebuildCurrentStateForAsset_/);
 });
 
 test('CurrentState.gs participates in server syntax verification', () => {
