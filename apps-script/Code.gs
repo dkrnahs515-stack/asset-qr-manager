@@ -299,7 +299,7 @@ function readAssetMaster_(sheet) {
   }).map(function (row) {
     return {
       systemId: String(row[index['영구 시스템 ID']] || '').trim(),
-      oldAssetNo: String(row[index['Old 비품번호']] || '').trim(),
+      oldAssetNo: normalizeAssetNumber(row[index['Old 비품번호']]),
       newAssetNo: String(row[index['New 비품번호']] || '').trim(),
       name: String(row[index['품명']] || '').trim(),
       spec: String(row[index['규격']] || '').trim(),
@@ -360,7 +360,7 @@ function buildRecordRow_(headers, record) {
     '대상구분': record.targetType,
     '영구 시스템 ID': record.systemId,
     '임시비품ID': record.tempAssetId,
-    'Old 비품번호': record.oldAssetNo,
+    'Old 비품번호': normalizeAssetNumber(record.oldAssetNo),
     'New 비품번호': record.newAssetNo,
     '품명': record.name,
     '규격': record.spec,
@@ -401,7 +401,7 @@ function rowToRecord_(headers, row) {
     targetType: String(value('대상구분') || ''),
     systemId: String(value('영구 시스템 ID') || ''),
     tempAssetId: String(value('임시비품ID') || ''),
-    oldAssetNo: String(value('Old 비품번호') || ''),
+    oldAssetNo: normalizeAssetNumber(value('Old 비품번호')),
     newAssetNo: String(value('New 비품번호') || ''),
     name: String(value('품명') || ''),
     spec: String(value('규격') || ''),
@@ -581,7 +581,13 @@ function hasActionUuid_(logSheet, actionUuid) {
 }
 
 function appendChangeLog_(sheet, change) {
+  validateChangeLogPayload(change);
   var headers = getHeaders_(sheet);
+  requireHeaders_(headers, [
+    '변경ID', '세션ID', '기록ID', '영구 시스템 ID', '변경일시', '변경자',
+    '작업유형', '대상필드', '변경전값', '변경후값', '변경사유', '작업UUID',
+    '이전변경ID', '취소여부', '동기화일시', '비고'
+  ], sheet.getName());
   var year = new Date(change.changedAt).getFullYear();
   var ids = readColumnValuesByHeader_(sheet, '변경ID');
   var max = ids.reduce(function (current, id) {
@@ -668,7 +674,7 @@ function serializeRecord_(record) {
     targetType: record.targetType,
     displayRole: record.displayRole || (record.targetType === '미등록비품' ? 'unregistered' : 'original'),
     systemId: record.systemId,
-    oldAssetNo: record.oldAssetNo,
+    oldAssetNo: normalizeAssetNumber(record.oldAssetNo),
     newAssetNo: record.newAssetNo,
     name: record.name,
     spec: record.spec,

@@ -182,9 +182,7 @@ function reviseInspectionActionFromMobile(payload) {
 
     var previousResult = record.result || '미확인';
     var nextRecord = reviseInspectionAction(record, action);
-    writeInspectionRecord_(recordSheet, found.rowNumber, nextRecord);
-
-    var changeId = appendChangeLog_(logSheet, {
+    var changeEntry = {
       sessionId: payload.sessionId,
       recordId: payload.recordId,
       systemId: record.systemId,
@@ -196,7 +194,11 @@ function reviseInspectionActionFromMobile(payload) {
       afterValue: JSON.stringify(createInspectionSnapshot(nextRecord)),
       reason: previousResult + ' → ' + nextRecord.result + ' · ' + action.memo,
       actionUuid: payload.actionUuid
-    });
+    };
+    validateChangeLogPayload(changeEntry);
+    writeInspectionRecord_(recordSheet, found.rowNumber, nextRecord);
+
+    var changeId = appendChangeLog_(logSheet, changeEntry);
 
     applySessionMetricDelta_(payload.sessionId, previousResult, nextRecord.result);
     return buildInspectionResponse_(nextRecord, payload.sessionId, changeId, false);

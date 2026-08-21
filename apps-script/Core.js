@@ -71,7 +71,7 @@ function buildInventoryRecords(sessionId, assets, errorMap) {
       targetType: '등록비품',
       systemId: asset.systemId || '',
       tempAssetId: '',
-      oldAssetNo: asset.oldAssetNo || '',
+      oldAssetNo: normalizeAssetNumber(asset.oldAssetNo),
       newAssetNo: asset.newAssetNo || '',
       name: asset.name || '',
       spec: asset.spec || '',
@@ -300,6 +300,61 @@ function aggregateProgress(records, locationMap) {
 
   result.progress = result.total ? round2_(result.completed / result.total * 100) : 0;
   return result;
+}
+
+function normalizeAssetNumber(value) {
+  if (value === null || value === undefined || value === '') return '';
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return value.getFullYear() + '-' + (value.getMonth() + 1);
+  }
+
+  var text = String(value).trim();
+  if (!text) return '';
+  var match = text.match(/^(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat)\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(\d{4})\s+\d{2}:\d{2}:\d{2}\s+GMT[+-]\d{4}/);
+  if (!match) return text;
+
+  var months = {
+    Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6,
+    Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12
+  };
+  return match[2] + '-' + months[match[1]];
+}
+
+function validateChangeLogPayload(change) {
+  var input = change || {};
+  var requiredText = [
+    ['sessionId', '세션ID'],
+    ['changedBy', '변경자'],
+    ['actionType', '작업유형'],
+    ['targetField', '대상필드'],
+    ['reason', '변경사유'],
+    ['actionUuid', '작업UUID']
+  ];
+
+  requiredText.forEach(function (entry) {
+    var key = entry[0];
+    var label = entry[1];
+    if (!Object.prototype.hasOwnProperty.call(input, key) || !String(input[key] || '').trim()) {
+      throw new Error('변경이력 ' + label + ' 값이 필요합니다.');
+    }
+  });
+
+  if (!Object.prototype.hasOwnProperty.call(input, 'changedAt') || !input.changedAt || isNaN(new Date(input.changedAt).getTime())) {
+    throw new Error('변경이력 변경일시 값이 필요합니다.');
+  }
+  if (!Object.prototype.hasOwnProperty.call(input, 'beforeValue') || input.beforeValue === undefined || input.beforeValue === null) {
+    throw new Error('변경이력 변경전값 값이 필요합니다.');
+  }
+  if (!Object.prototype.hasOwnProperty.call(input, 'afterValue') || input.afterValue === undefined || input.afterValue === null) {
+    throw new Error('변경이력 변경후값 값이 필요합니다.');
+  }
+  if (!String(input.beforeValue).trim() && !String(input.afterValue).trim()) {
+    throw new Error('변경이력 변경전값 또는 변경후값 중 하나는 필요합니다.');
+  }
+  if (String(input.actionType) !== '공간마감' && !String(input.recordId || '').trim()) {
+    throw new Error('변경이력 기록ID 값이 필요합니다.');
+  }
+  return input;
 }
 
 function representativeCode_(locationCode, locationMap) {
@@ -580,6 +635,8 @@ if (typeof module !== 'undefined' && module.exports) {
     summarizeLocationCloseout: summarizeLocationCloseout,
     sortLocationBuckets: sortLocationBuckets,
     buildRoomDisplayRecords: buildRoomDisplayRecords,
+    normalizeAssetNumber: normalizeAssetNumber,
+    validateChangeLogPayload: validateChangeLogPayload,
     createInspectionSnapshot: createInspectionSnapshot,
     applyInspectionAction: applyInspectionAction,
     reviseInspectionAction: reviseInspectionAction,
