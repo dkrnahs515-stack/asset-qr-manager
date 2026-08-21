@@ -75,6 +75,11 @@ test('server starts sessions from current-state baselines and writes all session
     assert.ok(body.includes(`'${field}'`), `missing session field: ${field}`);
   }
   assert.match(body, /buildInventoryRecords\(sessionId, baselineAssets, errorMap\)/);
+
+  const baselineAt = body.indexOf('readCurrentStateMap_(ss)');
+  const sessionWriteAt = body.indexOf('sessionSheet.getRange(sessionSheet.getLastRow() + 1');
+  assert.ok(baselineAt >= 0 && sessionWriteAt >= 0 && baselineAt < sessionWriteAt,
+    'current-state baseline validation must finish before the prepared session row is persisted');
 });
 
 test('inactive-session home captures repeated-session metadata while active inspector flow remains', () => {
