@@ -1,5 +1,7 @@
 'use strict';
 
+var INVENTORY_SESSION_CATEGORIES = ['정기', '수시', '특별', '재조사'];
+
 function clonePlainObject_(value) {
   var copy = {};
   Object.keys(value || {}).forEach(function (key) {
@@ -30,6 +32,28 @@ function isUsableInspectionRecord_(record) {
   if (record.targetType && record.targetType !== '등록비품') return false;
   var result = String(record.result || '').trim();
   return !!result && result !== '미확인' && result !== '미등록발견';
+}
+
+function normalizeSessionStartRequest(request, year) {
+  var input = typeof request === 'string' ? { inspector: request } : (request || {});
+  var normalizedYear = Number(year) || new Date().getFullYear();
+  var category = String(input.category || '정기').trim();
+  if (INVENTORY_SESSION_CATEGORIES.indexOf(category) < 0) {
+    throw new Error('지원하지 않는 조사구분입니다: ' + category);
+  }
+
+  var rawRound = Number(input.round);
+  var round = isFinite(rawRound) && rawRound >= 1 ? Math.floor(rawRound) : 1;
+  var defaultDisplayName = normalizedYear + '년 ' + category + ' 전수조사 ' + round + '차';
+  var defaultPurpose = category === '정기' ? '연간 정기 전수조사' : category + ' 조사';
+
+  return {
+    inspector: String(input.inspector || '').trim(),
+    category: category,
+    round: round,
+    displayName: String(input.displayName || defaultDisplayName).trim(),
+    purpose: String(input.purpose || defaultPurpose).trim()
+  };
 }
 
 function deriveCurrentState(asset, records, sessionsById, judgmentAtByRecordId, now) {
@@ -147,6 +171,7 @@ function selectInspectionBaseline(asset, currentState) {
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    normalizeSessionStartRequest: normalizeSessionStartRequest,
     deriveCurrentState: deriveCurrentState,
     selectInspectionBaseline: selectInspectionBaseline
   };
