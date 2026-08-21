@@ -121,8 +121,7 @@ code = replace_if_missing(
     code,
     "oldAssetNo: normalizeAssetNumber(value('Old 비품번호'))",
     "    oldAssetNo: String(value('Old 비품번호') || ''),",
-    "    oldAssetNo: normalizeAssetNumber(value('Old 비품번호')),
-",
+    "    oldAssetNo: normalizeAssetNumber(value('Old 비품번호')),",
     "normalize record old number",
 )
 code = replace_if_missing(
