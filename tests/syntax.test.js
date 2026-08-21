@@ -16,7 +16,8 @@ test('Apps Script server files parse as JavaScript', () => {
     'apps-script/Code.gs',
     'apps-script/Inspection.gs',
     'apps-script/FieldOps.gs',
-    'apps-script/SchemaSetup.gs'
+    'apps-script/SchemaSetup.gs',
+    'apps-script/CurrentState.gs'
   ]) {
     assert.doesNotThrow(() => new Function(read(file)), `${file} should parse`);
   }
