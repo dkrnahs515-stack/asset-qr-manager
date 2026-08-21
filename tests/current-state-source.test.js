@@ -103,6 +103,41 @@ test('photo-only evidence does not change judgment-derived current state', () =>
   assert.doesNotMatch(uploadBody, /safeRebuildCurrentStateForAsset_/);
 });
 
+test('repair endpoint validates one asset and performs a locked rebuild', () => {
+  const source = read('apps-script/CurrentState.gs');
+  assert.match(source, /function repairCurrentState\(systemId\)/);
+  const body = functionBody(source, 'repairCurrentState');
+  assert.match(body, /assertText_\(systemId, '영구 시스템 ID'\)/);
+  assert.match(body, /LockService\.getScriptLock\(\)/);
+  assert.match(body, /lock\.waitLock\(30000\)/);
+  assert.match(body, /return rebuildCurrentStateForAsset_\(systemId\)/);
+  assert.match(body, /lock\.releaseLock\(\)/);
+});
+
+test('README documents exact Apps Script mappings and one-time migration order', () => {
+  const readme = read('README.md');
+  for (const mapping of [
+    'apps-script/CurrentStateCore.js → CurrentStateCore.gs',
+    'apps-script/CurrentState.gs → CurrentState.gs',
+    'apps-script/SchemaSetup.gs → SchemaSetup.gs'
+  ]) assert.ok(readme.includes(mapping), `missing mapping: ${mapping}`);
+
+  const ordered = [
+    'installAssetQrSchema()',
+    'assetCount=842',
+    'rebuildAllCurrentStates()',
+    'auditCurrentState()',
+    '기존 웹 앱을 새 버전으로 배포'
+  ];
+  let previous = -1;
+  for (const marker of ordered) {
+    const index = readme.indexOf(marker);
+    assert.ok(index > previous, `migration marker is missing or out of order: ${marker}`);
+    previous = index;
+  }
+  assert.match(readme, /운영 시트에 적용하기 전에 백업 또는 테스트 사본에서 먼저 실행/);
+});
+
 test('CurrentState.gs participates in server syntax verification', () => {
   const syntax = read('tests/syntax.test.js');
   assert.match(syntax, /apps-script\/CurrentState\.gs/);
