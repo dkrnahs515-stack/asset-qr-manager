@@ -60,6 +60,14 @@ function startInventorySession(request) {
     var sessionId = makeSessionId(year, existingSessionIds);
     var now = new Date();
 
+    var errorMap = readErrorMap_(getRequiredSheet_(ss, INVENTORY_CONFIG.SHEETS.ERROR_REVIEW));
+    var currentStateMap = ss.getSheetByName(INVENTORY_CONFIG.SHEETS.CURRENT_STATE)
+      ? readCurrentStateMap_(ss)
+      : {};
+    var baselineAssets = assets.map(function (asset) {
+      return selectInspectionBaseline(asset, currentStateMap[asset.systemId]);
+    });
+
     var sessionRow = buildRowForHeaders_(getHeaders_(sessionSheet), {
       '세션ID': sessionId,
       '조사명': sessionRequest.displayName,
@@ -90,13 +98,6 @@ function startInventorySession(request) {
     });
     sessionSheet.getRange(sessionSheet.getLastRow() + 1, 1, 1, sessionRow.length).setValues([sessionRow]);
 
-    var errorMap = readErrorMap_(getRequiredSheet_(ss, INVENTORY_CONFIG.SHEETS.ERROR_REVIEW));
-    var currentStateMap = ss.getSheetByName(INVENTORY_CONFIG.SHEETS.CURRENT_STATE)
-      ? readCurrentStateMap_(ss)
-      : {};
-    var baselineAssets = assets.map(function (asset) {
-      return selectInspectionBaseline(asset, currentStateMap[asset.systemId]);
-    });
     var records = buildInventoryRecords(sessionId, baselineAssets, errorMap);
     var recordHeaders = getHeaders_(recordSheet);
     var rows = records.map(function (record) {

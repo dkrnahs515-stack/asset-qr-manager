@@ -27,6 +27,19 @@ function resolveJudgedAt_(record, judgmentAtByRecordId) {
   return record && (record.lastModifiedAt || record.firstInspectedAt) || '';
 }
 
+function resolveSessionStartedAt_(record, sessionsById, judgedAt) {
+  var session = (sessionsById || {})[record && record.sessionId] || {};
+  var startedAt = asComparableTime_(session.startedAt || '');
+  return startedAt || asComparableTime_(judgedAt);
+}
+
+function normalizeMasterApplied_(value) {
+  var text = String(value || '').trim();
+  if (text === 'Y' || text === '반영완료') return '반영완료';
+  if (text === '승인') return '승인';
+  return 'N';
+}
+
 function isUsableInspectionRecord_(record) {
   if (!record) return false;
   if (record.targetType && record.targetType !== '등록비품') return false;
@@ -98,13 +111,17 @@ function deriveCurrentState(asset, records, sessionsById, judgmentAtByRecordId, 
   var orderedRecords = (records || [])
     .filter(isUsableInspectionRecord_)
     .map(function (record, inputIndex) {
+      var judgedAt = resolveJudgedAt_(record, judgmentMap);
       return {
         record: record,
-        judgedAt: resolveJudgedAt_(record, judgmentMap),
+        judgedAt: judgedAt,
+        sessionStartedAt: resolveSessionStartedAt_(record, sessions, judgedAt),
         inputIndex: inputIndex
       };
     })
     .sort(function (a, b) {
+      var sessionDifference = a.sessionStartedAt - b.sessionStartedAt;
+      if (sessionDifference) return sessionDifference;
       var timeDifference = asComparableTime_(a.judgedAt) - asComparableTime_(b.judgedAt);
       if (timeDifference) return timeDifference;
       var idDifference = String(a.record.recordId || '').localeCompare(String(b.record.recordId || ''));
@@ -126,7 +143,7 @@ function deriveCurrentState(asset, records, sessionsById, judgmentAtByRecordId, 
     state.latestJudgedAt = judgedAt;
     state.latestJudgedBy = record.inspector || '';
     state.evidenceRecordId = record.recordId || '';
-    state.masterApplied = record.masterApplied || 'N';
+    state.masterApplied = normalizeMasterApplied_(record.masterApplied);
 
     if (String(record.physicalConfirmed || '') !== 'Y' || !record.confirmedLocationCode) {
       return;
@@ -147,8 +164,10 @@ function deriveCurrentState(asset, records, sessionsById, judgmentAtByRecordId, 
     state.currentSpaceName = record.confirmedSpaceName || '';
     if (Object.prototype.hasOwnProperty.call(record, 'confirmedDetailLocation')) {
       state.currentDetailLocation = record.confirmedDetailLocation || '';
+    } else if (locationChanged) {
+      state.currentDetailLocation = '';
     }
-    state.locationSource = record.masterApplied === 'Y' ? '관리자반영' : '전수조사';
+    state.locationSource = state.masterApplied === '반영완료' ? '관리자반영' : '전수조사';
     state.lastPhysicalConfirmedAt = judgedAt;
     state.lastPhysicalConfirmedBy = record.inspector || '';
   });
