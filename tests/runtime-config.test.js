@@ -89,17 +89,22 @@ test('Apps Script integration reads Script Properties and no longer uses an acti
   assert.match(runtimeSource, /function setupApprovedTestRuntime\(\)/);
   assert.match(runtimeSource, /function switchRuntimeEnvironment\(environment, confirmation\)/);
   assert.match(runtimeSource, /SWITCH_TO_PRODUCTION/);
+  assert.match(runtimeSource, /ASSET_PROJECT_ROLE/);
 });
 
 test('approved TEST setup writes both sheet IDs but activates TEST only', () => {
   const runtimePath = path.join(__dirname, '..', 'apps-script', 'RuntimeConfig.gs');
   assert.ok(fs.existsSync(runtimePath), 'apps-script/RuntimeConfig.gs must exist');
   const source = fs.readFileSync(runtimePath, 'utf8');
+  const setupBody = source
+    .split('function setupApprovedTestRuntime()')[1]
+    .split('\nfunction ')[0];
 
   assert.match(source, /1jphVHn1W4DpBkeKwi5mZx5rpuMHkQ9oYE4rEI9au3oQ/);
   assert.match(source, /1R5WjwpXtsJwQfIvNnQ_D5PLD6TTLXqTlQ7CSjbUa274/);
-  assert.match(source, /ASSET_APP_ENV[\s\S]*TEST/);
-  assert.doesNotMatch(source, /setupApprovedTestRuntime[\s\S]{0,1000}ASSET_APP_ENV[\s\S]{0,80}PRODUCTION/);
+  assert.match(setupBody, /ASSET_APP_ENV:\s*'TEST'/);
+  assert.match(setupBody, /ASSET_PROJECT_ROLE:\s*'TEST'/);
+  assert.doesNotMatch(setupBody, /ASSET_APP_ENV:\s*'PRODUCTION'/);
 });
 
 test('photo folder persistence is scoped by the selected runtime environment', () => {
