@@ -168,7 +168,7 @@ function readCurrentStateMap_(ss) {
   var map = {};
   readAllCurrentStates_(ss || getSpreadsheet_()).forEach(function (state) {
     if (map[state.systemId]) {
-      throw new Error('비품현재상태에 중복 영구 시스템 ID가 있습니다: ' + state.systemId);
+      throw new Error('비품현재상태 영구 시스템 ID 중복: ' + state.systemId);
     }
     map[state.systemId] = state;
   });

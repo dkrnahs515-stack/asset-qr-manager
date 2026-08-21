@@ -233,7 +233,7 @@ test('a later edit to an older session cannot override a newer inspection sessio
   assert.equal(state.latestSessionId, 'INV-2026-002');
   assert.equal(state.currentResult, '정상');
   assert.equal(state.currentLocationCode, 'LOC-019');
-  assert.equal(state.latestJudgedAt, at('2026-09-02T01:00:00Z'));
+  assert.equal(state.latestJudgedAt.getTime(), at('2026-09-02T01:00:00Z').getTime());
 });
 
 test('moving to another room clears stale detail-location text when no new detail is confirmed', () => {
