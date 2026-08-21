@@ -10,7 +10,7 @@ const {
 
 const root = path.resolve(__dirname, '..');
 
-function validChange() {
+function validRevisionChange() {
   return {
     sessionId: 'INV-2026-001',
     recordId: 'INVR-2026-001-0386',
@@ -34,11 +34,41 @@ test('asset numbers accidentally converted to dates are restored to year-sequenc
   assert.equal(normalizeAssetNumber('2022-O-54'), '2022-O-54');
 });
 
-test('change-log validation rejects an incomplete audit row before it can be written', () => {
-  assert.doesNotThrow(() => validateChangeLogPayload(validChange()));
-  const incomplete = validChange();
-  delete incomplete.actionType;
-  assert.throws(() => validateChangeLogPayload(incomplete), /작업유형/);
+test('change-log validation accepts legitimate blank identifiers and creation before-values', () => {
+  assert.doesNotThrow(() => validateChangeLogPayload(validRevisionChange()));
+
+  const created = {
+    ...validRevisionChange(),
+    actionType: '미등록발견',
+    beforeValue: '',
+    afterValue: '{"tempAssetId":"TMP-2026-0001"}'
+  };
+  assert.doesNotThrow(() => validateChangeLogPayload(created));
+
+  const roomCloseout = {
+    ...validRevisionChange(),
+    recordId: '',
+    systemId: '',
+    actionType: '공간마감',
+    targetField: '대표위치코드'
+  };
+  assert.doesNotThrow(() => validateChangeLogPayload(roomCloseout));
+});
+
+test('change-log validation rejects incomplete audit rows before they can be written', () => {
+  for (const field of ['actionType', 'targetField', 'changedBy', 'reason', 'actionUuid']) {
+    const incomplete = validRevisionChange();
+    delete incomplete[field];
+    assert.throws(() => validateChangeLogPayload(incomplete), new RegExp(field === 'actionType' ? '작업유형' : field === 'targetField' ? '대상필드' : field === 'changedBy' ? '변경자' : field === 'reason' ? '변경사유' : '작업UUID'));
+  }
+
+  const missingBefore = validRevisionChange();
+  delete missingBefore.beforeValue;
+  assert.throws(() => validateChangeLogPayload(missingBefore), /변경전값/);
+
+  const missingRecord = validRevisionChange();
+  missingRecord.recordId = '';
+  assert.throws(() => validateChangeLogPayload(missingRecord), /기록ID/);
 });
 
 test('Apps Script normalizes old asset numbers and validates a revision log before record mutation', () => {
@@ -47,8 +77,10 @@ test('Apps Script normalizes old asset numbers and validates a revision log befo
   const revision = inspection.split('function reviseInspectionActionFromMobile(payload) {')[1]
     .split('function undoInspectionAction(payload) {')[0];
 
-  assert.match(code, /oldAssetNo:\s*normalizeAssetNumber\(/);
-  assert.match(code, /validateChangeLogPayload\(change\);/);
+  assert.match(code, /oldAssetNo:\s*normalizeAssetNumber\(row\[index\['Old 비품번호'\]\]\)/);
+  assert.match(code, /oldAssetNo:\s*normalizeAssetNumber\(value\('Old 비품번호'\)\)/);
+  assert.match(code, /oldAssetNo:\s*normalizeAssetNumber\(record\.oldAssetNo\)/);
+  assert.match(code, /function appendChangeLog_\(sheet, change\) \{\s*validateChangeLogPayload\(change\);/);
   assert.match(revision, /var changeEntry = \{/);
 
   const validateAt = revision.indexOf('validateChangeLogPayload(changeEntry);');
