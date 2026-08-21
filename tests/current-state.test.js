@@ -20,13 +20,15 @@ const sessions = {
     sessionId: 'INV-2026-001',
     name: '2026년 정기 전수조사 1차',
     category: '정기',
-    round: 1
+    round: 1,
+    startedAt: new Date('2026-08-01T00:00:00Z')
   },
   'INV-2026-002': {
     sessionId: 'INV-2026-002',
     name: '2026년 수시 위치점검 1차',
     category: '수시',
-    round: 1
+    round: 1,
+    startedAt: new Date('2026-09-01T00:00:00Z')
   }
 };
 
@@ -169,7 +171,7 @@ test('unconfirmed record is excluded so a prior valid session remains authoritat
   assert.equal(state.evidenceRecordId, 'INVR-2026-001-0001');
 });
 
-test('records are reduced by judgment time rather than input order', () => {
+test('records are reduced by session chronology rather than input order', () => {
   const earlier = {
     recordId: 'INVR-2026-001-0001',
     sessionId: 'INV-2026-001',
@@ -199,6 +201,75 @@ test('records are reduced by judgment time rather than input order', () => {
   assert.equal(state.currentLocationCode, 'LOC-019');
   assert.equal(state.currentResult, '위치변경');
   assert.equal(state.previousLocationCode, 'LOC-001');
+});
+
+test('a later edit to an older session cannot override a newer inspection session', () => {
+  const oldRecord = {
+    recordId: 'INVR-2026-001-0001',
+    sessionId: 'INV-2026-001',
+    result: '위치변경',
+    physicalConfirmed: 'Y',
+    confirmedLocationCode: 'LOC-099',
+    confirmedFloor: '옥상',
+    confirmedSpaceName: '옥상 창고',
+    inspector: '김정훈'
+  };
+  const newerRecord = {
+    recordId: 'INVR-2026-002-0001',
+    sessionId: 'INV-2026-002',
+    result: '정상',
+    physicalConfirmed: 'Y',
+    confirmedLocationCode: 'LOC-019',
+    confirmedFloor: '1층',
+    confirmedSpaceName: '로비',
+    inspector: '이건희'
+  };
+
+  const state = deriveCurrentState(asset, [oldRecord, newerRecord], sessions, {
+    [oldRecord.recordId]: at('2026-10-01T01:00:00Z'),
+    [newerRecord.recordId]: at('2026-09-02T01:00:00Z')
+  }, at('2026-10-01T01:05:00Z'));
+
+  assert.equal(state.latestSessionId, 'INV-2026-002');
+  assert.equal(state.currentResult, '정상');
+  assert.equal(state.currentLocationCode, 'LOC-019');
+  assert.equal(state.latestJudgedAt, at('2026-09-02T01:00:00Z'));
+});
+
+test('moving to another room clears stale detail-location text when no new detail is confirmed', () => {
+  const state = deriveCurrentState({ ...asset, detailLocation: '왼쪽 선반 1칸' }, [{
+    recordId: 'INVR-2026-001-0001',
+    sessionId: 'INV-2026-001',
+    result: '위치변경',
+    physicalConfirmed: 'Y',
+    confirmedLocationCode: 'LOC-019',
+    confirmedFloor: '1층',
+    confirmedSpaceName: '로비',
+    inspector: '이건희'
+  }], sessions, {
+    'INVR-2026-001-0001': at('2026-08-21T02:00:00Z')
+  }, at('2026-08-21T02:05:00Z'));
+
+  assert.equal(state.currentDetailLocation, '');
+});
+
+test('master-applied Y is normalized to the current-state vocabulary', () => {
+  const state = deriveCurrentState(asset, [{
+    recordId: 'INVR-2026-001-0001',
+    sessionId: 'INV-2026-001',
+    result: '정상',
+    physicalConfirmed: 'Y',
+    confirmedLocationCode: 'LOC-001',
+    confirmedFloor: '지하 1층',
+    confirmedSpaceName: '창고 1',
+    inspector: '김정훈',
+    masterApplied: 'Y'
+  }], sessions, {
+    'INVR-2026-001-0001': at('2026-08-21T01:00:00Z')
+  }, at('2026-08-21T01:05:00Z'));
+
+  assert.equal(state.masterApplied, '반영완료');
+  assert.equal(state.locationSource, '관리자반영');
 });
 
 test('baseline uses current state only when synchronization is healthy', () => {
