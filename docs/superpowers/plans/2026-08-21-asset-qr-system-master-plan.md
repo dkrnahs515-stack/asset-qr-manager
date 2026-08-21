@@ -22,6 +22,8 @@
 - Do not template-inject unvalidated URL query text into executable JavaScript. The detail client reads `k` with `new URLSearchParams(window.location.search).get('k') || ''`, and the server validates it before lookup.
 - Do not expose sheet-derived values through `innerHTML`; use `textContent`. The only permitted `innerHTML` use is insertion of SVG returned by the pinned local QR encoder.
 - Node-only globals such as `Buffer` must be guarded behind `typeof module !== 'undefined'`; Apps Script production paths use `Utilities.base64EncodeWebSafe`.
+- Label filter floors and spaces come from `위치마스터` plus distinct locations in `비품현재상태`; they must not depend on `getBootstrapData()` or the presence of an active inspection session.
+- The current-state, QR issue, and label APIs use exact system-ID/key matching and reject duplicate active rows rather than selecting one arbitrarily.
 
 ---
 
@@ -90,6 +92,7 @@ var initialKey = new URLSearchParams(window.location.search).get('k') || '';
 - Produces: calibrated Formtec settings and a 10–20 asset attached-label pilot.
 
 - [ ] Implement label core, administrator APIs/UI, local QR vendor, and exact print CSS.
+- [ ] Build label filter floors/spaces from `위치마스터` and `비품현재상태`, including operation when no inspection session is active.
 - [ ] Verify the vendored QR code package version/license and preserve its notice.
 - [ ] Run `npm test`; require zero failures.
 - [ ] Print a plain-A4 alignment page and record X/Y/gap corrections.
@@ -129,6 +132,7 @@ var initialKey = new URLSearchParams(window.location.search).get('k') || '';
 - [ ] Signed-out users cannot directly view detail data.
 - [ ] Every active QR key resolves to exactly one active asset.
 - [ ] Current location follows judgment, revision, and Undo rules.
+- [ ] Label selection works when an inspection session is active, completed, or absent.
 - [ ] Formtec and free-cut profiles both print 64×34mm labels.
 - [ ] Every label shows `정: 김은영`, `부: 김정훈`, New asset number, item name, inspection date, and QR.
 - [ ] Print completion and reprint history are present in `QR발급관리`.
