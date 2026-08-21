@@ -10,45 +10,15 @@ on:
       - main
       - feature/inventory-mobile-mvp
 
-permissions:
-  contents: write
-
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout runtime branch
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: feature/apps-script-runtime-environments
-          fetch-depth: 0
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Apply runtime integration when pending
-        shell: bash
-        run: |
-          if grep -q "runtime-banner" apps-script/Index.html; then
-            echo "Runtime integration is already applied."
-          else
-            python .github/scripts/apply_runtime_environment_patch.py
-          fi
       - name: Run tests
         run: npm test
-      - name: Commit integrated runtime files
-        if: github.event_name == 'pull_request'
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps-script/Code.gs apps-script/FieldOps.gs apps-script/Index.html apps-script/README.md tests/syntax.test.js
-          git diff --cached --check
-          if git diff --cached --quiet; then
-            echo "No runtime integration changes required."
-            exit 0
-          fi
-          git commit -m "feat: integrate Script Property runtime selection"
-          git fetch origin feature/apps-script-runtime-environments
-          git rebase origin/feature/apps-script-runtime-environments
-          git push origin HEAD:feature/apps-script-runtime-environments
