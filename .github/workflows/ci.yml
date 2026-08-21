@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   patch:
@@ -57,3 +58,10 @@ jobs:
           node-version: '20'
       - name: Run tests
         run: npm test
+      - name: Report successful verification on PR
+        if: github.event_name == 'push' && github.ref_name == 'feature/inventory-mobile-mvp'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment 1 --repo "$GITHUB_REPOSITORY" --body "✅ 번호 정규화·변경이력 검증 CI 완료 — \
+          \`npm test\` 전체 통과, 검증 커밋: \`$GITHUB_SHA\`."
