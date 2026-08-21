@@ -175,3 +175,45 @@ npm test
 - 세션 진행률/변경이력 반영
 
 미등록 비품, Drive 사진, 공간 마감 기능은 이번 PR 업데이트 후 Apps Script 재배포 뒤 추가 실기 검증합니다.
+
+
+## TEST·운영 Apps Script 프로젝트 분리
+
+Script Properties는 Apps Script 프로젝트 단위로 공유되므로 TEST와 운영 웹앱은 **서로 다른 Apps Script 프로젝트**를 사용합니다. 같은 프로젝트의 `/dev`와 `/exec`를 TEST·운영으로 나누지 않습니다.
+
+### TEST 프로젝트 최초 설정
+
+1. 기존 운영 Apps Script 프로젝트를 복사하거나 새 독립 프로젝트를 만들고 이름에 `[TEST]`를 표시합니다.
+2. 저장소의 `Core.js`, `CurrentStateCore.js`, `RuntimeConfigCore.js`, `Code.gs`, `RuntimeConfig.gs`, `Inspection.gs`, `FieldOps.gs`, `SchemaSetup.gs`, `CurrentState.gs`, `Index.html`, `appsscript.json`을 TEST 프로젝트에 반영합니다.
+3. 편집기에서 `setupApprovedTestRuntime()`을 1회 실행하고 권한을 승인합니다.
+4. `getRuntimeEnvironmentStatus()` 반환값이 아래와 같은지 확인합니다.
+   - `environment: TEST`
+   - `projectRole: TEST`
+   - 스프레드시트 제목: `강서청소년회관 QR 비품관리 대장_QR개발 테스트 사본`
+5. `installAssetQrSchema()`와 `rebuildAllCurrentStates()`는 TEST 사본에서만 실행합니다.
+6. **배포 → 테스트 배포 → 웹 앱**으로 `/dev` URL을 발급합니다. `/dev`는 스크립트 편집 권한이 있는 사용자만 접근하며 최신 저장 코드를 실행합니다.
+
+### 운영 프로젝트 보호
+
+운영 프로젝트에서는 `setupApprovedTestRuntime()`을 실행하지 않습니다. 운영 전환은 운영 프로젝트에서만 다음 순서로 진행합니다.
+
+```javascript
+setupApprovedProductionRuntime('INITIALIZE_PRODUCTION_PROJECT');
+switchRuntimeEnvironment('PRODUCTION', 'SWITCH_TO_PRODUCTION');
+```
+
+프로젝트 역할과 다른 환경으로의 전환은 코드에서 차단됩니다. TEST 사진 폴더 키는 `ASSET_TEST_*`, 운영 사진 폴더 키는 `ASSET_PRODUCTION_*`로 저장되며, 기존 `INVENTORY_PHOTO_*` 값은 운영 프로젝트에서만 호환 마이그레이션합니다.
+
+### Script Property 표준키
+
+```text
+ASSET_APP_ENV
+ASSET_PROJECT_ROLE
+ASSET_TEST_SPREADSHEET_ID
+ASSET_PRODUCTION_SPREADSHEET_ID
+ASSET_RUNTIME_CONFIG_VERSION
+ASSET_TEST_PHOTO_ROOT_ID
+ASSET_TEST_PHOTO_SESSION_<세션ID>
+ASSET_PRODUCTION_PHOTO_ROOT_ID
+ASSET_PRODUCTION_PHOTO_SESSION_<세션ID>
+```

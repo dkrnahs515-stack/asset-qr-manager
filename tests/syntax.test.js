@@ -13,6 +13,8 @@ test('Apps Script server files parse as JavaScript', () => {
   for (const file of [
     'apps-script/Core.js',
     'apps-script/CurrentStateCore.js',
+    'apps-script/RuntimeConfigCore.js',
+    'apps-script/RuntimeConfig.gs',
     'apps-script/Code.gs',
     'apps-script/Inspection.gs',
     'apps-script/FieldOps.gs',

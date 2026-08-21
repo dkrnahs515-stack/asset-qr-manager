@@ -1,5 +1,4 @@
 var INVENTORY_PHOTO_TYPES = ['파손', '고장', '라벨', '위치', '미등록', '규격', '기타'];
-var INVENTORY_PHOTO_ROOT_NAME = '강서청소년회관 비품 전수조사 사진';
 
 function getRoomInventoryData(sessionId, representativeLocationCode) {
   assertText_(sessionId, '세션ID');
@@ -396,24 +395,51 @@ function nextPhotoId_(sheet, date) {
 }
 
 function getInventoryPhotoFolder_(sessionId) {
+  var config = getRuntimeConfig_();
   var properties = PropertiesService.getScriptProperties();
-  var rootId = properties.getProperty('INVENTORY_PHOTO_ROOT_ID');
-  var root;
-  if (rootId) {
-    try { root = DriveApp.getFolderById(rootId); } catch (error) { root = null; }
-  }
-  if (!root) {
-    root = DriveApp.createFolder(INVENTORY_PHOTO_ROOT_NAME);
-    properties.setProperty('INVENTORY_PHOTO_ROOT_ID', root.getId());
+  var rootId = properties.getProperty(config.photoRootIdKey);
+
+  if (!rootId && config.isProduction) {
+    rootId = properties.getProperty('INVENTORY_PHOTO_ROOT_ID') || '';
+    if (rootId) properties.setProperty(config.photoRootIdKey, rootId);
   }
 
-  var key = 'INVENTORY_PHOTO_SESSION_' + sessionId;
-  var sessionFolderId = properties.getProperty(key);
-  if (sessionFolderId) {
-    try { return DriveApp.getFolderById(sessionFolderId); } catch (error2) {}
+  var root = null;
+  if (rootId) {
+    try {
+      root = DriveApp.getFolderById(rootId);
+      root.getName();
+    } catch (error) {
+      root = null;
+    }
   }
-  var folder = root.createFolder(sessionId);
-  properties.setProperty(key, folder.getId());
+  if (!root) {
+    root = DriveApp.createFolder(config.photoRootName);
+    properties.setProperty(config.photoRootIdKey, root.getId());
+  }
+
+  var sessionKey = config.photoSessionIdPrefix + sessionId;
+  var sessionFolderId = properties.getProperty(sessionKey);
+  if (!sessionFolderId && config.isProduction) {
+    var legacySessionKey = 'INVENTORY_PHOTO_SESSION_' + sessionId;
+    sessionFolderId = properties.getProperty(legacySessionKey) || '';
+    if (sessionFolderId) properties.setProperty(sessionKey, sessionFolderId);
+  }
+
+  if (sessionFolderId) {
+    try {
+      var existing = DriveApp.getFolderById(sessionFolderId);
+      existing.getName();
+      return existing;
+    } catch (error) {
+      sessionFolderId = '';
+    }
+  }
+
+  var folderName = sessionId + (config.isProduction ? '' : ' [TEST]');
+  var folders = root.getFoldersByName(folderName);
+  var folder = folders.hasNext() ? folders.next() : root.createFolder(folderName);
+  properties.setProperty(sessionKey, folder.getId());
   return folder;
 }
 
