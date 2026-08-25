@@ -16,6 +16,7 @@ function loadRuntimeModule() {
 
 const APPROVED_PROPERTIES = {
   ASSET_APP_ENV: 'TEST',
+  ASSET_PROJECT_ROLE: 'TEST',
   ASSET_TEST_SPREADSHEET_ID: '1jphVHn1W4DpBkeKwi5mZx5rpuMHkQ9oYE4rEI9au3oQ',
   ASSET_PRODUCTION_SPREADSHEET_ID: '1R5WjwpXtsJwQfIvNnQ_D5PLD6TTLXqTlQ7CSjbUa274',
   ASSET_RUNTIME_CONFIG_VERSION: '2026-08-21-v1'
@@ -26,6 +27,7 @@ test('TEST environment selects only the approved test sheet and test-scoped phot
   const config = resolveRuntimeConfig(APPROVED_PROPERTIES);
 
   assert.equal(config.environment, 'TEST');
+  assert.equal(config.projectRole, 'TEST');
   assert.equal(config.displayLabel, '테스트');
   assert.equal(config.isProduction, false);
   assert.equal(config.spreadsheetId, APPROVED_PROPERTIES.ASSET_TEST_SPREADSHEET_ID);
@@ -38,10 +40,12 @@ test('PRODUCTION environment selects only the approved production sheet and prod
   const { resolveRuntimeConfig } = loadRuntimeModule();
   const config = resolveRuntimeConfig({
     ...APPROVED_PROPERTIES,
-    ASSET_APP_ENV: 'PRODUCTION'
+    ASSET_APP_ENV: 'PRODUCTION',
+    ASSET_PROJECT_ROLE: 'PRODUCTION'
   });
 
   assert.equal(config.environment, 'PRODUCTION');
+  assert.equal(config.projectRole, 'PRODUCTION');
   assert.equal(config.displayLabel, '운영');
   assert.equal(config.isProduction, true);
   assert.equal(config.spreadsheetId, APPROVED_PROPERTIES.ASSET_PRODUCTION_SPREADSHEET_ID);
@@ -50,7 +54,7 @@ test('PRODUCTION environment selects only the approved production sheet and prod
   assert.equal(config.photoRootName, '강서청소년회관 비품 전수조사 사진');
 });
 
-test('runtime resolution fails closed for missing, invalid, incomplete, or colliding configuration', () => {
+test('runtime resolution fails closed for missing, invalid, incomplete, colliding, or mismatched configuration', () => {
   const { resolveRuntimeConfig } = loadRuntimeModule();
 
   assert.throws(
@@ -60,6 +64,18 @@ test('runtime resolution fails closed for missing, invalid, incomplete, or colli
   assert.throws(
     () => resolveRuntimeConfig({ ...APPROVED_PROPERTIES, ASSET_APP_ENV: 'DEV' }),
     /TEST 또는 PRODUCTION/
+  );
+  assert.throws(
+    () => resolveRuntimeConfig({ ...APPROVED_PROPERTIES, ASSET_PROJECT_ROLE: '' }),
+    /ASSET_PROJECT_ROLE/
+  );
+  assert.throws(
+    () => resolveRuntimeConfig({ ...APPROVED_PROPERTIES, ASSET_PROJECT_ROLE: 'DEV' }),
+    /프로젝트 역할은 TEST 또는 PRODUCTION/
+  );
+  assert.throws(
+    () => resolveRuntimeConfig({ ...APPROVED_PROPERTIES, ASSET_PROJECT_ROLE: 'PRODUCTION' }),
+    /프로젝트 역할\(PRODUCTION\)과 활성 환경\(TEST\)이 다릅니다/
   );
   assert.throws(
     () => resolveRuntimeConfig({ ...APPROVED_PROPERTIES, ASSET_TEST_SPREADSHEET_ID: '' }),
