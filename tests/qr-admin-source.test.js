@@ -46,11 +46,12 @@ test('QR issuance requires the stable detail deployment URL from label settings'
 });
 
 test('five-asset pilot helper issues only the approved pilot system IDs', () => {
-  const source = readSource();
-  const match = source.match(/function issueApprovedQrPilot\(\) \{([\s\S]*?)\n\}/);
+  const pilotPath = 'apps-script/PilotQr.gs';
+  assert.ok(fs.existsSync(pilotPath), 'apps-script/PilotQr.gs must exist');
+  const pilot = fs.readFileSync(pilotPath, 'utf8');
+  const match = pilot.match(/function issueApprovedQrPilot\(\) \{([\s\S]*?)\n\}/);
   assert.ok(match, 'issueApprovedQrPilot() must exist');
-  const body = match[1];
-  const ids = [...body.matchAll(/GSYC-\d{6}/g)].map((entry) => entry[0]);
+  const ids = [...match[1].matchAll(/GSYC-\d{6}/g)].map((entry) => entry[0]);
   assert.deepEqual(ids, [
     'GSYC-000340',
     'GSYC-000820',
@@ -58,5 +59,5 @@ test('five-asset pilot helper issues only the approved pilot system IDs', () => 
     'GSYC-000815',
     'GSYC-000003'
   ]);
-  assert.match(body, /issueQrAccessKeys\(\{\s*systemIds:/);
+  assert.match(match[1], /issueQrAccessKeys\(\{\s*systemIds:/);
 });
