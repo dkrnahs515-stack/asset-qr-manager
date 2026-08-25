@@ -21,6 +21,16 @@ function resolveRuntimeConfig(properties) {
     throw new Error('ASSET_APP_ENV는 TEST 또는 PRODUCTION이어야 합니다.');
   }
 
+  var projectRole = requireRuntimeProperty_(source, 'ASSET_PROJECT_ROLE').toUpperCase();
+  if (ASSET_RUNTIME_ENVIRONMENTS.indexOf(projectRole) < 0) {
+    throw new Error('Apps Script 프로젝트 역할은 TEST 또는 PRODUCTION이어야 합니다.');
+  }
+  if (projectRole !== environment) {
+    throw new Error(
+      'Apps Script 프로젝트 역할(' + projectRole + ')과 활성 환경(' + environment + ')이 다릅니다.'
+    );
+  }
+
   var testSpreadsheetId = requireRuntimeProperty_(source, 'ASSET_TEST_SPREADSHEET_ID');
   var productionSpreadsheetId = requireRuntimeProperty_(source, 'ASSET_PRODUCTION_SPREADSHEET_ID');
   if (testSpreadsheetId === productionSpreadsheetId) {
@@ -36,7 +46,7 @@ function resolveRuntimeConfig(properties) {
     spreadsheetId: isProduction ? productionSpreadsheetId : testSpreadsheetId,
     testSpreadsheetId: testSpreadsheetId,
     productionSpreadsheetId: productionSpreadsheetId,
-    projectRole: runtimeConfigText_(source.ASSET_PROJECT_ROLE).toUpperCase(),
+    projectRole: projectRole,
     configVersion: runtimeConfigText_(source.ASSET_RUNTIME_CONFIG_VERSION),
     photoRootIdKey: propertyPrefix + 'PHOTO_ROOT_ID',
     photoSessionIdPrefix: propertyPrefix + 'PHOTO_SESSION_',
