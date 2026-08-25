@@ -33,6 +33,24 @@ test('readonly detail repository uses the Advanced Sheets service instead of Spr
   assert.match(source, /dateTimeRenderOption:\s*'SERIAL_NUMBER'/);
 });
 
+test('current-state date serials are normalized before building the detail model', () => {
+  const source = readRequired('DetailRepository.gs');
+  const context = { console };
+  vm.runInNewContext(source, context);
+
+  assert.equal(
+    context.detailDateIso_(46253.735645925924),
+    '2026-08-19T08:39:20.608Z'
+  );
+
+  const currentStateReader = source
+    .split('function readDetailCurrentState_')[1]
+    .split('\nfunction detailDateTimestamp_')[0];
+  assert.match(currentStateReader, /latestJudgedAt:\s*detailDateIso_\(/);
+  assert.match(currentStateReader, /lastPhysicalConfirmedAt:\s*detailDateIso_\(/);
+  assert.match(currentStateReader, /lastLocationChangedAt:\s*detailDateIso_\(/);
+});
+
 test('detail server validates exact keys, exact system IDs, and paginates history', () => {
   const source = ['Code.gs', 'DetailRepository.gs'].map(readRequired).join('\n');
 
