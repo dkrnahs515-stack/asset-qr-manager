@@ -1,5 +1,4 @@
 var INVENTORY_CONFIG = {
-  SPREADSHEET_ID: '1R5WjwpXtsJwQfIvNnQ_D5PLD6TTLXqTlQ7CSjbUa274',
   SHEETS: {
     ASSET_MASTER: '비품마스터',
     LOCATION_MASTER: '위치마스터',
@@ -27,7 +26,8 @@ function getBootstrapData() {
       activeSession: null,
       summary: null,
       floors: [],
-      reviewLocations: 0
+      reviewLocations: 0,
+      runtime: getRuntimeEnvironmentStatus()
     };
   }
   return buildBootstrapForSession_(active.sessionId);
@@ -248,10 +248,6 @@ function markAssetNormal(payload) {
   } finally {
     lock.releaseLock();
   }
-}
-
-function getSpreadsheet_() {
-  return SpreadsheetApp.openById(INVENTORY_CONFIG.SPREADSHEET_ID);
 }
 
 function getRequiredSheet_(ss, name) {
@@ -504,7 +500,8 @@ function buildBootstrapForSession_(sessionId) {
       progress: data.progress.progress
     },
     floors: floors,
-    reviewLocations: reviewLocations
+    reviewLocations: reviewLocations,
+    runtime: getRuntimeEnvironmentStatus()
   };
 }
 
