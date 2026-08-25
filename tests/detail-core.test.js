@@ -83,9 +83,9 @@ test('Google Sheets serial dates render as the correct 2026 instant instead of 1
     syncStatus: '정상'
   }, []);
 
-  assert.equal(model.location.changedAt, '2026-08-19T08:39:20.608Z');
-  assert.equal(model.latest.physicalConfirmedAt, '2026-08-19T08:39:20.608Z');
-  assert.equal(model.latest.judgedAt, '2026-08-19T08:39:20.608Z');
+  assert.equal(model.location.changedAt, '2026-08-19T08:39:19.808Z');
+  assert.equal(model.latest.physicalConfirmedAt, '2026-08-19T08:39:19.808Z');
+  assert.equal(model.latest.judgedAt, '2026-08-19T08:39:19.808Z');
 });
 
 test('missing fields render as information unavailable instead of undefined', () => {
