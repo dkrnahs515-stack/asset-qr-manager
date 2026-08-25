@@ -126,7 +126,11 @@
     setText('current-location', location.current);
     setText('registered-location', location.registered);
     setText('location-source', '위치 기준: ' + (location.source || '비품마스터'));
-    setText('master-applied', location.masterApplied === '반영완료' ? '대장 반영완료' : '대장 반영 전');
+    var masterAppliedBadge = element('master-applied');
+    masterAppliedBadge.hidden = !location.mismatch;
+    if (location.mismatch) {
+      masterAppliedBadge.textContent = location.masterApplied === '반영완료' ? '대장 반영완료' : '대장 반영 전';
+    }
     setText('location-changed-at', formatDate(location.changedAt));
     setText('physical-confirmed-at', formatDate(latest.physicalConfirmedAt));
 
