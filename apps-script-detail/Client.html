@@ -1,0 +1,195 @@
+<script>
+(function () {
+  'use strict';
+
+  var key = String(window.INITIAL_QR_KEY || '');
+  var runtime = window.DETAIL_RUNTIME || null;
+  var nextOffset = null;
+  var historyTotal = 0;
+  var loadingMore = false;
+
+  function element(id) {
+    return document.getElementById(id);
+  }
+
+  function setText(id, value) {
+    var target = element(id);
+    if (target) target.textContent = String(value === undefined || value === null || value === '' ? '정보 없음' : value);
+  }
+
+  function formatDate(value) {
+    if (!value) return '정보 없음';
+    var date = new Date(value);
+    if (isNaN(date.getTime())) return String(value);
+    return new Intl.DateTimeFormat('ko-KR', {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    }).format(date);
+  }
+
+  function showRuntime(data) {
+    if (!data) return;
+    var banner = element('runtime-banner');
+    banner.hidden = false;
+    banner.className = 'runtime ' + (data.isProduction ? 'production' : 'test');
+    setText('runtime-label', data.isProduction ? '운영 정보' : '테스트 정보');
+    setText('runtime-source', (data.spreadsheetTitle || '') + ' · ' + (data.spreadsheetIdMasked || ''));
+  }
+
+  function hideLoading() {
+    element('loading').hidden = true;
+  }
+
+  function showError(error) {
+    hideLoading();
+    element('detail').hidden = true;
+    element('error').hidden = false;
+    setText('error-title', error && error.title || '비품정보를 불러오지 못했습니다');
+    setText('error-message', error && error.message || '잠시 후 다시 시도해 주세요.');
+  }
+
+  function paragraph(label, value) {
+    var line = document.createElement('p');
+    var strong = document.createElement('strong');
+    strong.textContent = label + ': ';
+    line.appendChild(strong);
+    line.appendChild(document.createTextNode(String(value || '정보 없음')));
+    return line;
+  }
+
+  function createHistoryItem(item) {
+    var details = document.createElement('details');
+    details.className = 'history-item';
+
+    var summary = document.createElement('summary');
+    summary.textContent = (item.sessionName || '조사이력') + ' · ' + (item.result || '정보 없음');
+    details.appendChild(summary);
+
+    var body = document.createElement('div');
+    body.className = 'history-body';
+    body.appendChild(paragraph('판정일시', formatDate(item.judgedAt)));
+    body.appendChild(paragraph('확인 위치', item.location));
+    body.appendChild(paragraph('조사자', item.inspector));
+    if (item.issueType) body.appendChild(paragraph('이상유형', item.issueType));
+    details.appendChild(body);
+    return details;
+  }
+
+  function appendHistory(items, clearFirst) {
+    var list = element('history-list');
+    if (clearFirst) list.replaceChildren();
+    (items || []).forEach(function (item) {
+      list.appendChild(createHistoryItem(item));
+    });
+    if (!list.childNodes.length) {
+      var empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = '등록된 조사이력이 없습니다.';
+      list.appendChild(empty);
+    }
+  }
+
+  function updateHistoryButton() {
+    var button = element('load-more');
+    button.hidden = nextOffset === null || nextOffset === undefined || historyTotal <= Number(nextOffset || 0);
+    button.disabled = loadingMore;
+    button.textContent = loadingMore ? '불러오는 중…' : '이력 더 보기';
+  }
+
+  function renderDetail(response) {
+    hideLoading();
+    if (!response || !response.ok) {
+      showError(response && response.error);
+      return;
+    }
+
+    var detail = response.detail || {};
+    var basic = detail.basic || {};
+    var location = detail.location || {};
+    var latest = detail.latest || {};
+
+    element('error').hidden = true;
+    element('detail').hidden = false;
+    showRuntime(response.runtime || runtime);
+
+    setText('asset-number', basic.newAssetNo);
+    setText('asset-name', basic.name);
+    setText('basic-number', basic.newAssetNo);
+    setText('basic-name', basic.name);
+    setText('basic-spec', basic.spec);
+    setText('basic-quantity', basic.quantity);
+    setText('basic-unit-price', basic.unitPrice);
+    setText('basic-acquisition', basic.acquisitionAmount);
+    setText('basic-purchase-year', basic.purchaseYear);
+    setText('basic-useful-life', basic.usefulLife);
+
+    setText('current-location', location.current);
+    setText('registered-location', location.registered);
+    setText('location-source', '위치 기준: ' + (location.source || '비품마스터'));
+    setText('master-applied', location.masterApplied === '반영완료' ? '대장 반영완료' : '대장 반영 전');
+    setText('location-changed-at', formatDate(location.changedAt));
+    setText('physical-confirmed-at', formatDate(latest.physicalConfirmedAt));
+
+    var registeredBox = element('registered-location-box');
+    registeredBox.className = 'location-box registered' + (location.mismatch ? ' mismatch' : '');
+    var warning = element('sync-warning');
+    warning.hidden = !location.syncWarning;
+    warning.textContent = location.syncWarning || '';
+
+    setText('latest-result', latest.result);
+    setText('latest-session', latest.sessionName);
+    setText('latest-judged-at', formatDate(latest.judgedAt));
+    setText('latest-judged-by', latest.judgedBy || latest.physicalConfirmedBy || '정보 없음');
+
+    historyTotal = Number(response.historyTotal || 0);
+    nextOffset = response.nextOffset;
+    appendHistory(detail.history || [], true);
+    updateHistoryButton();
+  }
+
+  function loadMoreHistory() {
+    if (loadingMore || nextOffset === null || nextOffset === undefined) return;
+    loadingMore = true;
+    updateHistoryButton();
+    google.script.run
+      .withSuccessHandler(function (response) {
+        loadingMore = false;
+        if (!response || !response.ok) {
+          showError(response && response.error);
+          return;
+        }
+        appendHistory(response.items || [], false);
+        historyTotal = Number(response.total || historyTotal);
+        nextOffset = response.nextOffset;
+        updateHistoryButton();
+      })
+      .withFailureHandler(function () {
+        loadingMore = false;
+        updateHistoryButton();
+        showError({
+          title: '조사이력을 불러오지 못했습니다',
+          message: '잠시 후 다시 시도해 주세요.'
+        });
+      })
+      .getAssetHistoryByKey(key, nextOffset, 10);
+  }
+
+  element('load-more').addEventListener('click', loadMoreHistory);
+  showRuntime(runtime);
+
+  if (window.INITIAL_DETAIL_ERROR) {
+    showError(window.INITIAL_DETAIL_ERROR);
+    return;
+  }
+
+  google.script.run
+    .withSuccessHandler(renderDetail)
+    .withFailureHandler(function () {
+      showError({
+        title: '비품정보를 불러오지 못했습니다',
+        message: '잠시 후 다시 시도하거나 비품관리 담당자에게 문의해 주세요.'
+      });
+    })
+    .getAssetDetailByKey(key, 10);
+}());
+</script>
