@@ -40,7 +40,7 @@ test('readonly boundary converts Google Sheets date serials to the correct insta
 
   assert.equal(
     context.detailDateIso_(46253.735645925924),
-    '2026-08-19T08:39:20.608Z'
+    '2026-08-19T08:39:19.808Z'
   );
 });
 
