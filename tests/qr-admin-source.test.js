@@ -28,6 +28,16 @@ test('QR issuance uses exact key lookups, reuses one active row, and updates the
   assert.doesNotMatch(source, /deleteRow\(|deleteRows\(/);
 });
 
+test('QR issuance rejects duplicate permanent IDs in the asset master', () => {
+  const source = readSource();
+  const reader = source
+    .split('function readQrAdminMasterAssetById_')[1]
+    .split('\nfunction updateMasterQrUrl_')[0];
+
+  assert.match(reader, /findAll\(\)/);
+  assert.match(reader, /영구 시스템 ID가 중복/);
+});
+
 test('QR issuance requires the stable detail deployment URL from label settings', () => {
   const source = readSource();
   assert.match(source, /readRequiredLabelSetting_\('상세조회배포URL'\)/);
