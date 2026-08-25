@@ -44,3 +44,19 @@ test('QR issuance requires the stable detail deployment URL from label settings'
   assert.match(source, /buildQrLookupUrl/);
   assert.match(source, /재발급 사유/);
 });
+
+test('five-asset pilot helper issues only the approved pilot system IDs', () => {
+  const source = readSource();
+  const match = source.match(/function issueApprovedQrPilot\(\) \{([\s\S]*?)\n\}/);
+  assert.ok(match, 'issueApprovedQrPilot() must exist');
+  const body = match[1];
+  const ids = [...body.matchAll(/GSYC-\d{6}/g)].map((entry) => entry[0]);
+  assert.deepEqual(ids, [
+    'GSYC-000340',
+    'GSYC-000820',
+    'GSYC-000817',
+    'GSYC-000815',
+    'GSYC-000003'
+  ]);
+  assert.match(body, /issueQrAccessKeys\(\{\s*systemIds:/);
+});
