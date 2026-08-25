@@ -39,11 +39,14 @@ test('detail runtime is Script Property based and locked to a separate TEST or P
   assert.match(source, /INITIALIZE_DETAIL_PRODUCTION_PROJECT/);
 });
 
-test('doGet whitelists the URL key before embedding it into the page', () => {
+test('doGet whitelists the URL key and escapes all JSON before embedding it into HTML', () => {
   const source = readRequired('Code.gs');
   assert.match(source, /validateDetailKey\(rawKey\)/);
-  assert.match(source, /template\.initialKeyJson/);
-  assert.match(source, /template\.initialErrorJson/);
+  assert.match(source, /function detailJsonForHtml_\(value\)/);
+  assert.match(source, /replace\(\/<\/g, ['"]\\u003c['"]\)/);
+  assert.match(source, /template\.initialKeyJson\s*=\s*detailJsonForHtml_/);
+  assert.match(source, /template\.initialErrorJson\s*=\s*detailJsonForHtml_/);
+  assert.match(source, /template\.runtimeJson\s*=\s*detailJsonForHtml_/);
   assert.doesNotMatch(source, /template\.initialKey\s*=\s*JSON\.stringify\(String\(e/);
 });
 
