@@ -52,15 +52,22 @@ asset-qr-manager/
 │  ├─ Index.html
 │  ├─ appsscript.json
 │  └─ README.md
+├─ apps-script-detail/
+│  ├─ Code.gs
+│  ├─ DetailCore.js
+│  ├─ DetailRepository.gs
+│  ├─ Index.html
+│  ├─ Styles.html
+│  ├─ Client.html
+│  ├─ appsscript.json
+│  └─ README.md
 ├─ tests/
-│  └─ core.test.js
 ├─ docs/superpowers/
 │  ├─ specs/
 │  └─ plans/
 ├─ package.json
 └─ .github/workflows/ci.yml
 ```
-
 
 ## 비품현재상태 기반 설치·복구
 
@@ -102,6 +109,52 @@ repairCurrentState('GSYC-000340');
 ```
 
 전체를 다시 계산해야 할 때는 `rebuildAllCurrentStates()`를 사용하고, 완료 후 반드시 `auditCurrentState()` 결과를 확인합니다. 사진추가만으로 최근 판정일·마지막 실물확인일·마지막 위치변경일은 변경되지 않습니다.
+
+## QR 비품 상세조회 5개 파일럿
+
+QR 상세조회는 기존 전수조사 앱과 분리된 **읽기 전용 Apps Script 웹앱**입니다. 외부 URL에는 순차적인 `GSYC-000001` 대신 32자리 영구 접근키만 노출합니다.
+
+```text
+비품 본체 QR
+→ https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec?k=<32자리 접근키>
+→ Google 로그인
+→ 비품마스터 기본정보 + 비품현재상태 + 조사이력 조회
+```
+
+기존 전수조사 프로젝트에는 다음 두 파일을 추가합니다.
+
+```text
+apps-script/QrCore.js  → QrCore.gs
+apps-script/QrAdmin.gs → QrAdmin.gs
+```
+
+별도 상세조회 프로젝트의 파일 매핑은 다음과 같습니다.
+
+```text
+apps-script-detail/Code.gs             → Code.gs
+apps-script-detail/DetailCore.js       → DetailCore.gs
+apps-script-detail/DetailRepository.gs → DetailRepository.gs
+apps-script-detail/Index.html          → Index.html
+apps-script-detail/Styles.html         → Styles.html
+apps-script-detail/Client.html         → Client.html
+apps-script-detail/appsscript.json     → appsscript.json
+```
+
+상세조회 프로젝트는 `spreadsheets.readonly` 권한만 사용하며 Drive 접근이나 시트 쓰기 기능을 포함하지 않습니다. TEST 프로젝트와 운영 프로젝트는 Script Properties의 프로젝트 역할로 서로 분리합니다.
+
+파일럿 대상은 다음 다섯 비품입니다.
+
+| 유형 | 영구 시스템 ID | 비품번호 | 품명 |
+|---|---|---|---|
+| 정상 | `GSYC-000340` | `2019-F2-10` | 문서 세단기 |
+| 위치변경 | `GSYC-000820` | `2022-O-54` | 하비체어 |
+| 상태이상 | `GSYC-000817` | `2022-O-51` | 하비체어 |
+| 미발견 | `GSYC-000815` | `2018-O-130` | 야외용 원목테이블 |
+| 기본정보 일부 공란 | `GSYC-000003` | `2018-B-113` | 사각테이블 |
+
+정식 상세조회 `/exec` URL을 TEST `라벨설정.상세조회배포URL`에 입력한 뒤 이 다섯 건만 `issueQrAccessKeys()`로 발급합니다. 842개 전체 발급은 상세조회·인증·오류화면·라벨 파일럿이 모두 통과한 뒤 진행합니다.
+
+자세한 배포와 파일럿 검증 절차는 [`apps-script-detail/README.md`](apps-script-detail/README.md)를 참고합니다.
 
 ---
 
