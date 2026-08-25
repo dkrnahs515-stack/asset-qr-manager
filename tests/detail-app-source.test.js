@@ -98,6 +98,13 @@ test('detail UI contains required sections, renders sheet values with textConten
   assert.doesNotMatch(html, />\s*(저장|수정하기|삭제)\s*</);
 });
 
+test('master application badge is shown only when current and registered locations differ', () => {
+  const source = readRequired('Client.html');
+  assert.match(source, /var masterAppliedBadge = element\('master-applied'\)/);
+  assert.match(source, /masterAppliedBadge\.hidden = !location\.mismatch/);
+  assert.match(source, /location\.masterApplied === '반영완료' \? '대장 반영완료' : '대장 반영 전'/);
+});
+
 test('detail server and client JavaScript parse successfully', () => {
   const server = ['DetailCore.js', 'Code.gs', 'DetailRepository.gs'].map(readRequired).join('\n');
   assert.doesNotThrow(() => new vm.Script(server));
