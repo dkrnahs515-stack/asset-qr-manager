@@ -1,7 +1,7 @@
 var DETAIL_APPROVED_RUNTIME = {
   TEST_SPREADSHEET_ID: '1jphVHn1W4DpBkeKwi5mZx5rpuMHkQ9oYE4rEI9au3oQ',
   PRODUCTION_SPREADSHEET_ID: '1R5WjwpXtsJwQfIvNnQ_D5PLD6TTLXqTlQ7CSjbUa274',
-  CONFIG_VERSION: '2026-08-25-v1'
+  CONFIG_VERSION: '2026-08-25-v2'
 };
 
 var DETAIL_CONFIG = {
@@ -24,25 +24,51 @@ var DETAIL_JUDGMENT_ACTIONS = [
   '정상확인', '위치변경', '상태이상', '미발견', '보류', '판정수정', '작업취소'
 ];
 
+var DETAIL_SHEETS_SERIAL_EPOCH_MS = Date.UTC(1899, 11, 30);
+var DETAIL_KOREA_OFFSET_MS = 9 * 60 * 60 * 1000;
+
 function getDetailRuntimeConfig_() {
   return resolveDetailRuntimeConfig(
     PropertiesService.getScriptProperties().getProperties()
   );
 }
 
+function detailSpreadsheetMetadataById_(spreadsheetId) {
+  var resource = Sheets.Spreadsheets.get(String(spreadsheetId), {
+    includeGridData: false,
+    fields: 'spreadsheetId,properties(title,timeZone),sheets(properties(title,gridProperties(rowCount,columnCount)))'
+  });
+  var sheetMap = {};
+  (resource.sheets || []).forEach(function (sheet) {
+    var properties = sheet.properties || {};
+    if (!properties.title) return;
+    sheetMap[properties.title] = {
+      title: properties.title,
+      rowCount: properties.gridProperties && properties.gridProperties.rowCount || 0,
+      columnCount: properties.gridProperties && properties.gridProperties.columnCount || 0
+    };
+  });
+  return {
+    id: String(resource.spreadsheetId || spreadsheetId),
+    title: String(resource.properties && resource.properties.title || ''),
+    timeZone: String(resource.properties && resource.properties.timeZone || 'Asia/Seoul'),
+    sheets: sheetMap
+  };
+}
+
 function getDetailSpreadsheet_() {
   var config = getDetailRuntimeConfig_();
-  var spreadsheet = SpreadsheetApp.openById(config.spreadsheetId);
+  var spreadsheet = detailSpreadsheetMetadataById_(config.spreadsheetId);
   validateDetailSpreadsheet_(spreadsheet, config);
   return spreadsheet;
 }
 
 function validateDetailSpreadsheet_(spreadsheet, config) {
-  if (!spreadsheet || String(spreadsheet.getId()) !== String(config.spreadsheetId)) {
+  if (!spreadsheet || String(spreadsheet.id) !== String(config.spreadsheetId)) {
     throw new Error('상세조회 환경에 연결된 스프레드시트가 올바르지 않습니다.');
   }
   var missing = DETAIL_REQUIRED_SHEETS.filter(function (sheetName) {
-    return !spreadsheet.getSheetByName(sheetName);
+    return !spreadsheet.sheets || !spreadsheet.sheets[sheetName];
   });
   if (missing.length) {
     throw new Error('상세조회 필수 시트가 없습니다: ' + missing.join(', '));
@@ -59,7 +85,7 @@ function setupApprovedDetailTestRuntime() {
     ASSET_DETAIL_CONFIG_VERSION: DETAIL_APPROVED_RUNTIME.CONFIG_VERSION
   };
   var config = resolveDetailRuntimeConfig(candidate);
-  validateDetailSpreadsheet_(SpreadsheetApp.openById(config.spreadsheetId), config);
+  validateDetailSpreadsheet_(detailSpreadsheetMetadataById_(config.spreadsheetId), config);
   PropertiesService.getScriptProperties().setProperties(candidate, false);
   return getDetailRuntimeStatus_();
 }
@@ -76,7 +102,7 @@ function setupApprovedDetailProductionRuntime(confirmation) {
     ASSET_DETAIL_CONFIG_VERSION: DETAIL_APPROVED_RUNTIME.CONFIG_VERSION
   };
   var config = resolveDetailRuntimeConfig(candidate);
-  validateDetailSpreadsheet_(SpreadsheetApp.openById(config.spreadsheetId), config);
+  validateDetailSpreadsheet_(detailSpreadsheetMetadataById_(config.spreadsheetId), config);
   PropertiesService.getScriptProperties().setProperties(candidate, false);
   return getDetailRuntimeStatus_();
 }
@@ -87,31 +113,61 @@ function detailMask_(value) {
   return text.slice(0, 5) + '…' + text.slice(-5);
 }
 
-function getDetailRuntimeStatus_() {
-  var config = getDetailRuntimeConfig_();
-  var spreadsheet = getDetailSpreadsheet_();
+function detailRuntimeStatusFrom_(config, spreadsheet) {
   return {
     environment: config.environment,
     displayLabel: config.displayLabel,
     isProduction: config.isProduction,
     projectRole: config.projectRole,
-    spreadsheetTitle: spreadsheet.getName(),
+    spreadsheetTitle: spreadsheet.title,
     spreadsheetIdMasked: detailMask_(config.spreadsheetId),
     configVersion: config.configVersion || ''
   };
 }
 
-function detailRequiredSheet_(spreadsheet, sheetName) {
-  var sheet = spreadsheet.getSheetByName(sheetName);
-  if (!sheet) throw new Error('상세조회 필수 시트를 찾을 수 없습니다: ' + sheetName);
-  return sheet;
+function getDetailRuntimeStatus_() {
+  var config = getDetailRuntimeConfig_();
+  var spreadsheet = getDetailSpreadsheet_();
+  return detailRuntimeStatusFrom_(config, spreadsheet);
 }
 
-function detailHeaders_(sheet) {
-  var lastColumn = sheet.getLastColumn();
-  if (lastColumn < 1) throw new Error(sheet.getName() + ' 시트에 헤더가 없습니다.');
-  return sheet.getRange(1, 1, 1, lastColumn).getValues()[0]
-    .map(function (value) { return String(value || '').trim(); });
+function detailRequiredSheet_(spreadsheet, sheetName) {
+  if (!spreadsheet || !spreadsheet.sheets || !spreadsheet.sheets[sheetName]) {
+    throw new Error('상세조회 필수 시트를 찾을 수 없습니다: ' + sheetName);
+  }
+  return spreadsheet.sheets[sheetName];
+}
+
+function detailQuoteSheetName_(sheetName) {
+  return "'" + String(sheetName || '').replace(/'/g, "''") + "'";
+}
+
+function detailReadTable_(spreadsheet, sheetName) {
+  detailRequiredSheet_(spreadsheet, sheetName);
+  var response = Sheets.Spreadsheets.Values.get(
+    spreadsheet.id,
+    detailQuoteSheetName_(sheetName) + '!A:ZZ',
+    {
+      valueRenderOption: 'UNFORMATTED_VALUE',
+      dateTimeRenderOption: 'SERIAL_NUMBER',
+      majorDimension: 'ROWS'
+    }
+  );
+  var values = response.values || [];
+  var headers = (values[0] || []).map(function (value) {
+    return String(value === undefined || value === null ? '' : value).trim();
+  });
+  if (!headers.length) throw new Error(sheetName + ' 시트에 헤더가 없습니다.');
+  var rows = values.slice(1).map(function (row) {
+    var normalized = row ? row.slice() : [];
+    while (normalized.length < headers.length) normalized.push('');
+    return normalized;
+  });
+  return {
+    name: sheetName,
+    headers: headers,
+    rows: rows
+  };
 }
 
 function detailHeaderIndex_(headers) {
@@ -132,13 +188,16 @@ function detailRequireHeaders_(headers, required, sheetName) {
   return index;
 }
 
-function detailExactCells_(sheet, header, target) {
-  var headers = detailHeaders_(sheet);
-  var index = detailRequireHeaders_(headers, [header], sheet.getName());
-  if (sheet.getLastRow() <= 1) return { headers: headers, cells: [] };
-  var cells = sheet.getRange(2, index[header] + 1, sheet.getLastRow() - 1, 1)
-    .createTextFinder(String(target)).matchEntireCell(true).findAll();
-  return { headers: headers, cells: cells };
+function detailExactRows_(table, header, target) {
+  var index = detailRequireHeaders_(table.headers, [header], table.name);
+  var expected = String(target === undefined || target === null ? '' : target).trim();
+  return table.rows.map(function (row, rowIndex) {
+    return { rowNumber: rowIndex + 2, row: row };
+  }).filter(function (entry) {
+    return String(entry.row[index[header]] === undefined || entry.row[index[header]] === null
+      ? ''
+      : entry.row[index[header]]).trim() === expected;
+  });
 }
 
 function detailRowValue_(headers, row, header) {
@@ -146,18 +205,16 @@ function detailRowValue_(headers, row, header) {
   return index[header] === undefined ? '' : row[index[header]];
 }
 
-function readActiveQrIssueByKey_(key) {
-  var spreadsheet = getDetailSpreadsheet_();
-  var sheet = detailRequiredSheet_(spreadsheet, DETAIL_CONFIG.SHEETS.QR_ISSUE);
-  var found = detailExactCells_(sheet, 'QR접근키', key);
-  var matches = found.cells.map(function (cell) {
-    var row = sheet.getRange(cell.getRow(), 1, 1, found.headers.length).getValues()[0];
+function readActiveQrIssueByKey_(key, spreadsheet) {
+  var context = spreadsheet || getDetailSpreadsheet_();
+  var table = detailReadTable_(context, DETAIL_CONFIG.SHEETS.QR_ISSUE);
+  var matches = detailExactRows_(table, 'QR접근키', key).map(function (entry) {
     return {
-      rowNumber: cell.getRow(),
-      systemId: String(detailRowValue_(found.headers, row, '영구 시스템 ID') || '').trim(),
-      accessKey: String(detailRowValue_(found.headers, row, 'QR접근키') || '').trim(),
-      accessKeyStatus: String(detailRowValue_(found.headers, row, 'QR접근키상태') || '').trim(),
-      lookupUrl: String(detailRowValue_(found.headers, row, 'QR조회URL') || '').trim()
+      rowNumber: entry.rowNumber,
+      systemId: String(detailRowValue_(table.headers, entry.row, '영구 시스템 ID') || '').trim(),
+      accessKey: String(detailRowValue_(table.headers, entry.row, 'QR접근키') || '').trim(),
+      accessKeyStatus: String(detailRowValue_(table.headers, entry.row, 'QR접근키상태') || '').trim(),
+      lookupUrl: String(detailRowValue_(table.headers, entry.row, 'QR조회URL') || '').trim()
     };
   });
   var active = matches.filter(function (issue) { return issue.accessKeyStatus === '사용'; });
@@ -165,63 +222,69 @@ function readActiveQrIssueByKey_(key) {
   return active[0] || null;
 }
 
-function readDetailMasterAsset_(systemId) {
-  var spreadsheet = getDetailSpreadsheet_();
-  var sheet = detailRequiredSheet_(spreadsheet, DETAIL_CONFIG.SHEETS.ASSET_MASTER);
-  var found = detailExactCells_(sheet, '영구 시스템 ID', systemId);
-  if (!found.cells.length) return null;
-  if (found.cells.length > 1) throw new Error('비품마스터 영구 시스템 ID가 중복되었습니다: ' + systemId);
-  var row = sheet.getRange(found.cells[0].getRow(), 1, 1, found.headers.length).getValues()[0];
+function readDetailMasterAsset_(systemId, spreadsheet) {
+  var context = spreadsheet || getDetailSpreadsheet_();
+  var table = detailReadTable_(context, DETAIL_CONFIG.SHEETS.ASSET_MASTER);
+  var found = detailExactRows_(table, '영구 시스템 ID', systemId);
+  if (!found.length) return null;
+  if (found.length > 1) throw new Error('비품마스터 영구 시스템 ID가 중복되었습니다: ' + systemId);
+  var row = found[0].row;
   return {
-    systemId: String(detailRowValue_(found.headers, row, '영구 시스템 ID') || '').trim(),
-    newAssetNo: String(detailRowValue_(found.headers, row, 'New 비품번호') || '').trim(),
-    name: String(detailRowValue_(found.headers, row, '품명') || '').trim(),
-    spec: String(detailRowValue_(found.headers, row, '규격') || '').trim(),
-    unit: String(detailRowValue_(found.headers, row, '단위') || '').trim(),
-    quantity: detailRowValue_(found.headers, row, '수량'),
-    unitPrice: detailRowValue_(found.headers, row, '단가'),
-    acquisitionAmount: detailRowValue_(found.headers, row, '취득금액'),
-    purchaseYear: detailRowValue_(found.headers, row, '구입연도'),
-    usefulLife: detailRowValue_(found.headers, row, '내용연수'),
-    locationCode: String(detailRowValue_(found.headers, row, '위치코드') || '').trim(),
-    floor: String(detailRowValue_(found.headers, row, '층') || '').trim(),
-    spaceName: String(detailRowValue_(found.headers, row, '공간명') || '').trim(),
-    detailLocation: String(detailRowValue_(found.headers, row, '세부위치') || '').trim()
+    systemId: String(detailRowValue_(table.headers, row, '영구 시스템 ID') || '').trim(),
+    newAssetNo: String(detailRowValue_(table.headers, row, 'New 비품번호') || '').trim(),
+    name: String(detailRowValue_(table.headers, row, '품명') || '').trim(),
+    spec: String(detailRowValue_(table.headers, row, '규격') || '').trim(),
+    unit: String(detailRowValue_(table.headers, row, '단위') || '').trim(),
+    quantity: detailRowValue_(table.headers, row, '수량'),
+    unitPrice: detailRowValue_(table.headers, row, '단가'),
+    acquisitionAmount: detailRowValue_(table.headers, row, '취득금액'),
+    purchaseYear: detailRowValue_(table.headers, row, '구입연도'),
+    usefulLife: detailRowValue_(table.headers, row, '내용연수'),
+    locationCode: String(detailRowValue_(table.headers, row, '위치코드') || '').trim(),
+    floor: String(detailRowValue_(table.headers, row, '층') || '').trim(),
+    spaceName: String(detailRowValue_(table.headers, row, '공간명') || '').trim(),
+    detailLocation: String(detailRowValue_(table.headers, row, '세부위치') || '').trim()
   };
 }
 
-function readDetailCurrentState_(systemId) {
-  var spreadsheet = getDetailSpreadsheet_();
-  var sheet = detailRequiredSheet_(spreadsheet, DETAIL_CONFIG.SHEETS.CURRENT_STATE);
-  var found = detailExactCells_(sheet, '영구 시스템 ID', systemId);
-  if (!found.cells.length) return null;
-  if (found.cells.length > 1) throw new Error('비품현재상태 영구 시스템 ID가 중복되었습니다: ' + systemId);
-  var row = sheet.getRange(found.cells[0].getRow(), 1, 1, found.headers.length).getValues()[0];
+function readDetailCurrentState_(systemId, spreadsheet) {
+  var context = spreadsheet || getDetailSpreadsheet_();
+  var table = detailReadTable_(context, DETAIL_CONFIG.SHEETS.CURRENT_STATE);
+  var found = detailExactRows_(table, '영구 시스템 ID', systemId);
+  if (!found.length) return null;
+  if (found.length > 1) throw new Error('비품현재상태 영구 시스템 ID가 중복되었습니다: ' + systemId);
+  var row = found[0].row;
   return {
-    currentLocationCode: String(detailRowValue_(found.headers, row, '현재위치코드') || '').trim(),
-    currentFloor: String(detailRowValue_(found.headers, row, '현재층') || '').trim(),
-    currentSpaceName: String(detailRowValue_(found.headers, row, '현재공간명') || '').trim(),
-    currentDetailLocation: String(detailRowValue_(found.headers, row, '현재세부위치') || '').trim(),
-    locationSource: String(detailRowValue_(found.headers, row, '위치출처') || '').trim(),
-    currentResult: String(detailRowValue_(found.headers, row, '현재조사결과') || '').trim(),
-    latestSessionId: String(detailRowValue_(found.headers, row, '최근조사세션ID') || '').trim(),
-    latestSessionName: String(detailRowValue_(found.headers, row, '최근조사명') || '').trim(),
-    latestSessionCategory: String(detailRowValue_(found.headers, row, '최근조사구분') || '').trim(),
-    latestSessionRound: detailRowValue_(found.headers, row, '최근조사차수'),
-    latestJudgedAt: detailRowValue_(found.headers, row, '최근판정일시'),
-    latestJudgedBy: String(detailRowValue_(found.headers, row, '최근판정자') || '').trim(),
-    lastPhysicalConfirmedAt: detailRowValue_(found.headers, row, '마지막실물확인일시'),
-    lastPhysicalConfirmedBy: String(detailRowValue_(found.headers, row, '마지막실물확인자') || '').trim(),
-    lastLocationChangedAt: detailRowValue_(found.headers, row, '마지막위치변경일시'),
-    lastLocationChangedBy: String(detailRowValue_(found.headers, row, '마지막위치변경자') || '').trim(),
-    masterApplied: String(detailRowValue_(found.headers, row, '마스터반영여부') || '').trim(),
-    syncStatus: String(detailRowValue_(found.headers, row, '동기화상태') || '').trim(),
-    syncError: String(detailRowValue_(found.headers, row, '동기화오류') || '').trim()
+    currentLocationCode: String(detailRowValue_(table.headers, row, '현재위치코드') || '').trim(),
+    currentFloor: String(detailRowValue_(table.headers, row, '현재층') || '').trim(),
+    currentSpaceName: String(detailRowValue_(table.headers, row, '현재공간명') || '').trim(),
+    currentDetailLocation: String(detailRowValue_(table.headers, row, '현재세부위치') || '').trim(),
+    locationSource: String(detailRowValue_(table.headers, row, '위치출처') || '').trim(),
+    currentResult: String(detailRowValue_(table.headers, row, '현재조사결과') || '').trim(),
+    latestSessionId: String(detailRowValue_(table.headers, row, '최근조사세션ID') || '').trim(),
+    latestSessionName: String(detailRowValue_(table.headers, row, '최근조사명') || '').trim(),
+    latestSessionCategory: String(detailRowValue_(table.headers, row, '최근조사구분') || '').trim(),
+    latestSessionRound: detailRowValue_(table.headers, row, '최근조사차수'),
+    latestJudgedAt: detailRowValue_(table.headers, row, '최근판정일시'),
+    latestJudgedBy: String(detailRowValue_(table.headers, row, '최근판정자') || '').trim(),
+    lastPhysicalConfirmedAt: detailRowValue_(table.headers, row, '마지막실물확인일시'),
+    lastPhysicalConfirmedBy: String(detailRowValue_(table.headers, row, '마지막실물확인자') || '').trim(),
+    lastLocationChangedAt: detailRowValue_(table.headers, row, '마지막위치변경일시'),
+    lastLocationChangedBy: String(detailRowValue_(table.headers, row, '마지막위치변경자') || '').trim(),
+    masterApplied: String(detailRowValue_(table.headers, row, '마스터반영여부') || '').trim(),
+    syncStatus: String(detailRowValue_(table.headers, row, '동기화상태') || '').trim(),
+    syncError: String(detailRowValue_(table.headers, row, '동기화오류') || '').trim()
   };
 }
 
 function detailDateTimestamp_(value) {
   if (!value) return 0;
+  if (typeof value === 'number' && isFinite(value)) {
+    if (value > 10000) {
+      return Math.round(DETAIL_SHEETS_SERIAL_EPOCH_MS + value * 86400000 - DETAIL_KOREA_OFFSET_MS);
+    }
+    return 0;
+  }
   if (Object.prototype.toString.call(value) === '[object Date]') {
     return isNaN(value.getTime()) ? 0 : value.getTime();
   }
@@ -235,19 +298,17 @@ function detailDateIso_(value) {
 }
 
 function readDetailSessionMap_(spreadsheet) {
-  var sheet = detailRequiredSheet_(spreadsheet, DETAIL_CONFIG.SHEETS.SESSION);
-  var headers = detailHeaders_(sheet);
-  var index = detailRequireHeaders_(headers, ['세션ID'], sheet.getName());
+  var table = detailReadTable_(spreadsheet, DETAIL_CONFIG.SHEETS.SESSION);
+  var index = detailRequireHeaders_(table.headers, ['세션ID'], table.name);
   var map = {};
-  if (sheet.getLastRow() <= 1) return map;
-  sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues().forEach(function (row) {
+  table.rows.forEach(function (row) {
     var sessionId = String(row[index['세션ID']] || '').trim();
     if (!sessionId) return;
     map[sessionId] = {
-      name: String(detailRowValue_(headers, row, '조사표기명') || detailRowValue_(headers, row, '조사명') || '').trim(),
-      category: String(detailRowValue_(headers, row, '조사구분') || detailRowValue_(headers, row, '조사유형') || '').trim(),
-      round: detailRowValue_(headers, row, '조사차수'),
-      startedAt: detailRowValue_(headers, row, '시작일시') || ''
+      name: String(detailRowValue_(table.headers, row, '조사표기명') || detailRowValue_(table.headers, row, '조사명') || '').trim(),
+      category: String(detailRowValue_(table.headers, row, '조사구분') || detailRowValue_(table.headers, row, '조사유형') || '').trim(),
+      round: detailRowValue_(table.headers, row, '조사차수'),
+      startedAt: detailRowValue_(table.headers, row, '시작일시') || ''
     };
   });
   return map;
@@ -259,11 +320,9 @@ function readDetailJudgmentMap_(spreadsheet, recordIds) {
   var result = {};
   if (!Object.keys(requested).length) return result;
 
-  var sheet = detailRequiredSheet_(spreadsheet, DETAIL_CONFIG.SHEETS.CHANGE_LOG);
-  var headers = detailHeaders_(sheet);
-  var index = detailRequireHeaders_(headers, ['기록ID', '변경일시', '작업유형', '취소여부'], sheet.getName());
-  if (sheet.getLastRow() <= 1) return result;
-  sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues().forEach(function (row) {
+  var table = detailReadTable_(spreadsheet, DETAIL_CONFIG.SHEETS.CHANGE_LOG);
+  var index = detailRequireHeaders_(table.headers, ['기록ID', '변경일시', '작업유형', '취소여부'], table.name);
+  table.rows.forEach(function (row) {
     var recordId = String(row[index['기록ID']] || '').trim();
     var actionType = String(row[index['작업유형']] || '').trim();
     var cancelled = String(row[index['취소여부']] || '').trim();
@@ -276,32 +335,31 @@ function readDetailJudgmentMap_(spreadsheet, recordIds) {
   return result;
 }
 
-function readDetailHistory_(systemId, offset, limit) {
-  var spreadsheet = getDetailSpreadsheet_();
-  var recordSheet = detailRequiredSheet_(spreadsheet, DETAIL_CONFIG.SHEETS.RECORD);
-  var found = detailExactCells_(recordSheet, '영구 시스템 ID', systemId);
-  var records = found.cells.map(function (cell) {
-    var row = recordSheet.getRange(cell.getRow(), 1, 1, found.headers.length).getValues()[0];
+function readDetailHistory_(systemId, offset, limit, spreadsheet) {
+  var context = spreadsheet || getDetailSpreadsheet_();
+  var table = detailReadTable_(context, DETAIL_CONFIG.SHEETS.RECORD);
+  var records = detailExactRows_(table, '영구 시스템 ID', systemId).map(function (entry) {
+    var row = entry.row;
     return {
-      recordId: String(detailRowValue_(found.headers, row, '기록ID') || '').trim(),
-      sessionId: String(detailRowValue_(found.headers, row, '세션ID') || '').trim(),
-      targetType: String(detailRowValue_(found.headers, row, '대상구분') || '').trim(),
-      result: String(detailRowValue_(found.headers, row, '조사결과') || '').trim(),
-      issueType: String(detailRowValue_(found.headers, row, '이상유형') || '').trim(),
-      inspector: String(detailRowValue_(found.headers, row, '조사자') || '').trim(),
-      confirmedFloor: String(detailRowValue_(found.headers, row, '확인층') || '').trim(),
-      confirmedSpaceName: String(detailRowValue_(found.headers, row, '확인공간명') || '').trim(),
-      originalFloor: String(detailRowValue_(found.headers, row, '기존층') || '').trim(),
-      originalSpaceName: String(detailRowValue_(found.headers, row, '기존공간명') || '').trim(),
-      firstInspectedAt: detailRowValue_(found.headers, row, '최초조사일시') || '',
-      lastModifiedAt: detailRowValue_(found.headers, row, '최종수정일시') || ''
+      recordId: String(detailRowValue_(table.headers, row, '기록ID') || '').trim(),
+      sessionId: String(detailRowValue_(table.headers, row, '세션ID') || '').trim(),
+      targetType: String(detailRowValue_(table.headers, row, '대상구분') || '').trim(),
+      result: String(detailRowValue_(table.headers, row, '조사결과') || '').trim(),
+      issueType: String(detailRowValue_(table.headers, row, '이상유형') || '').trim(),
+      inspector: String(detailRowValue_(table.headers, row, '조사자') || '').trim(),
+      confirmedFloor: String(detailRowValue_(table.headers, row, '확인층') || '').trim(),
+      confirmedSpaceName: String(detailRowValue_(table.headers, row, '확인공간명') || '').trim(),
+      originalFloor: String(detailRowValue_(table.headers, row, '기존층') || '').trim(),
+      originalSpaceName: String(detailRowValue_(table.headers, row, '기존공간명') || '').trim(),
+      firstInspectedAt: detailRowValue_(table.headers, row, '최초조사일시') || '',
+      lastModifiedAt: detailRowValue_(table.headers, row, '최종수정일시') || ''
     };
   }).filter(function (record) {
     return record.targetType === '등록비품' && record.result && record.result !== '미확인';
   });
 
-  var sessions = readDetailSessionMap_(spreadsheet);
-  var judgmentMap = readDetailJudgmentMap_(spreadsheet, records.map(function (record) { return record.recordId; }));
+  var sessions = readDetailSessionMap_(context);
+  var judgmentMap = readDetailJudgmentMap_(context, records.map(function (record) { return record.recordId; }));
   var items = records.map(function (record) {
     var session = sessions[record.sessionId] || {};
     var judgedAt = judgmentMap[record.recordId] || record.lastModifiedAt || record.firstInspectedAt;
@@ -346,18 +404,20 @@ function getAssetDetailByKey(key, historyLimit) {
   var validated = validateDetailKey(key);
   if (!validated.ok) return { ok: false, error: buildDetailError(validated.code) };
   try {
-    var issue = readActiveQrIssueByKey_(validated.key);
+    var config = getDetailRuntimeConfig_();
+    var spreadsheet = getDetailSpreadsheet_();
+    var issue = readActiveQrIssueByKey_(validated.key, spreadsheet);
     if (!issue) return { ok: false, error: buildDetailError('INACTIVE_KEY') };
-    var asset = readDetailMasterAsset_(issue.systemId);
+    var asset = readDetailMasterAsset_(issue.systemId, spreadsheet);
     if (!asset) return { ok: false, error: buildDetailError('ASSET_NOT_FOUND') };
-    var state = readDetailCurrentState_(issue.systemId);
-    var history = readDetailHistory_(issue.systemId, 0, Math.min(20, Math.max(1, Number(historyLimit || 10))));
+    var state = readDetailCurrentState_(issue.systemId, spreadsheet);
+    var history = readDetailHistory_(issue.systemId, 0, Math.min(20, Math.max(1, Number(historyLimit || 10))), spreadsheet);
     return {
       ok: true,
       detail: buildAssetDetailModel(asset, state, history.items),
       historyTotal: history.total,
       nextOffset: history.nextOffset,
-      runtime: getDetailRuntimeStatus_()
+      runtime: detailRuntimeStatusFrom_(config, spreadsheet)
     };
   } catch (error) {
     console.error(error);
@@ -369,9 +429,10 @@ function getAssetHistoryByKey(key, offset, limit) {
   var validated = validateDetailKey(key);
   if (!validated.ok) return { ok: false, error: buildDetailError(validated.code) };
   try {
-    var issue = readActiveQrIssueByKey_(validated.key);
+    var spreadsheet = getDetailSpreadsheet_();
+    var issue = readActiveQrIssueByKey_(validated.key, spreadsheet);
     if (!issue) return { ok: false, error: buildDetailError('INACTIVE_KEY') };
-    var history = readDetailHistory_(issue.systemId, offset, limit);
+    var history = readDetailHistory_(issue.systemId, offset, limit, spreadsheet);
     return {
       ok: true,
       items: history.items,
