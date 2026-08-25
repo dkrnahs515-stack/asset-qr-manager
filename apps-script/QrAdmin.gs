@@ -132,9 +132,13 @@ function readQrAdminMasterAssetById_(ss, systemId) {
   var headers = getHeaders_(sheet);
   var index = requireHeaders_(headers, ['영구 시스템 ID', 'New 비품번호', '품명', 'QR조회URL'], sheet.getName());
   if (sheet.getLastRow() <= 1) return null;
-  var cell = sheet.getRange(2, index['영구 시스템 ID'] + 1, sheet.getLastRow() - 1, 1)
-    .createTextFinder(String(systemId)).matchEntireCell(true).findNext();
-  if (!cell) return null;
+  var cells = sheet.getRange(2, index['영구 시스템 ID'] + 1, sheet.getLastRow() - 1, 1)
+    .createTextFinder(String(systemId)).matchEntireCell(true).findAll();
+  if (!cells.length) return null;
+  if (cells.length > 1) {
+    throw new Error('비품마스터 영구 시스템 ID가 중복되었습니다: ' + systemId);
+  }
+  var cell = cells[0];
   var row = sheet.getRange(cell.getRow(), 1, 1, headers.length).getValues()[0];
   return {
     rowNumber: cell.getRow(),
@@ -147,13 +151,12 @@ function readQrAdminMasterAssetById_(ss, systemId) {
 
 function updateMasterQrUrl_(systemId, lookupUrl, ss) {
   var spreadsheet = ss || getSpreadsheet_();
+  var asset = readQrAdminMasterAssetById_(spreadsheet, systemId);
+  if (!asset) throw new Error('비품마스터에서 비품을 찾을 수 없습니다: ' + systemId);
   var sheet = getRequiredSheet_(spreadsheet, INVENTORY_CONFIG.SHEETS.ASSET_MASTER);
   var headers = getHeaders_(sheet);
-  var index = requireHeaders_(headers, ['영구 시스템 ID', 'QR조회URL'], sheet.getName());
-  var cell = sheet.getRange(2, index['영구 시스템 ID'] + 1, Math.max(0, sheet.getLastRow() - 1), 1)
-    .createTextFinder(String(systemId)).matchEntireCell(true).findNext();
-  if (!cell) throw new Error('비품마스터에서 비품을 찾을 수 없습니다: ' + systemId);
-  sheet.getRange(cell.getRow(), index['QR조회URL'] + 1).setValue(String(lookupUrl || ''));
+  var index = requireHeaders_(headers, ['QR조회URL'], sheet.getName());
+  sheet.getRange(asset.rowNumber, index['QR조회URL'] + 1).setValue(String(lookupUrl || ''));
 }
 
 function generateQrAccessKey_() {
