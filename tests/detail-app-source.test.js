@@ -20,12 +20,25 @@ test('detail project has readonly spreadsheet scope, login-only webapp access, a
   assert.doesNotMatch(allSource, /\.setValue\(|\.setValues\(|appendRow\(|deleteRow\(|deleteRows\(|DriveApp|LockService/);
 });
 
+test('readonly detail repository uses the Advanced Sheets service instead of SpreadsheetApp', () => {
+  const source = readRequired('DetailRepository.gs');
+  const manifest = JSON.parse(readRequired('appsscript.json'));
+  const services = manifest.dependencies && manifest.dependencies.enabledAdvancedServices || [];
+
+  assert.deepEqual(services, [{ userSymbol: 'Sheets', serviceId: 'sheets', version: 'v4' }]);
+  assert.doesNotMatch(source, /SpreadsheetApp/);
+  assert.match(source, /Sheets\.Spreadsheets\.get/);
+  assert.match(source, /Sheets\.Spreadsheets\.Values\.get/);
+  assert.match(source, /valueRenderOption:\s*'UNFORMATTED_VALUE'/);
+  assert.match(source, /dateTimeRenderOption:\s*'SERIAL_NUMBER'/);
+});
+
 test('detail server validates exact keys, exact system IDs, and paginates history', () => {
   const source = ['Code.gs', 'DetailRepository.gs'].map(readRequired).join('\n');
 
   assert.match(source, /function getAssetDetailByKey\(key, historyLimit\)/);
   assert.match(source, /function getAssetHistoryByKey\(key, offset, limit\)/);
-  assert.match(source, /matchEntireCell\(true\)/);
+  assert.match(source, /function detailExactRows_/);
   assert.match(source, /function readActiveQrIssueByKey_/);
   assert.match(source, /Math\.min\(20/);
 });
