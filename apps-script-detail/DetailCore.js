@@ -1,6 +1,8 @@
 'use strict';
 
 var DETAIL_RUNTIME_ENVIRONMENTS = ['TEST', 'PRODUCTION'];
+var DETAIL_CORE_SHEETS_SERIAL_EPOCH_MS = Date.UTC(1899, 11, 30);
+var DETAIL_CORE_KOREA_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 function detailText_(value) {
   return String(value === undefined || value === null ? '' : value).trim();
@@ -94,6 +96,13 @@ function detailQuantity_(quantity, unit) {
 
 function detailIso_(value) {
   if (!value) return '';
+  if (typeof value === 'number' && isFinite(value)) {
+    if (value <= 10000) return '';
+    var timestamp = Math.round(
+      DETAIL_CORE_SHEETS_SERIAL_EPOCH_MS + value * 86400000 - DETAIL_CORE_KOREA_OFFSET_MS
+    );
+    return new Date(timestamp).toISOString();
+  }
   if (Object.prototype.toString.call(value) === '[object Date]') {
     return isNaN(value.getTime()) ? '' : value.toISOString();
   }
