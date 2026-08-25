@@ -63,6 +63,31 @@ test('detail model distinguishes official and last-confirmed locations', () => {
   assert.equal(model.basic.quantity, '1개');
 });
 
+test('Google Sheets serial dates render as the correct 2026 instant instead of 1970', () => {
+  const serial = 46253.735645925924;
+  const model = buildAssetDetailModel({
+    systemId: 'GSYC-000820',
+    newAssetNo: '2022-O-54',
+    name: '하비체어',
+    locationCode: 'LOC-046',
+    floor: '외부',
+    spaceName: '자갈밭'
+  }, {
+    currentLocationCode: 'LOC-019',
+    currentFloor: '1층',
+    currentSpaceName: '로비',
+    currentResult: '위치변경',
+    lastLocationChangedAt: serial,
+    lastPhysicalConfirmedAt: serial,
+    latestJudgedAt: serial,
+    syncStatus: '정상'
+  }, []);
+
+  assert.equal(model.location.changedAt, '2026-08-19T08:39:20.608Z');
+  assert.equal(model.latest.physicalConfirmedAt, '2026-08-19T08:39:20.608Z');
+  assert.equal(model.latest.judgedAt, '2026-08-19T08:39:20.608Z');
+});
+
 test('missing fields render as information unavailable instead of undefined', () => {
   const model = buildAssetDetailModel({ systemId: 'GSYC-000002', newAssetNo: '', name: '' }, null, []);
   assert.equal(model.basic.newAssetNo, '정보 없음');
