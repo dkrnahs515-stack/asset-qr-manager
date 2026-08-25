@@ -42,12 +42,23 @@ test('detail runtime is Script Property based and locked to a separate TEST or P
 test('doGet whitelists the URL key and escapes all JSON before embedding it into HTML', () => {
   const source = readRequired('Code.gs');
   assert.match(source, /validateDetailKey\(rawKey\)/);
-  assert.match(source, /function detailJsonForHtml_\(value\)/);
-  assert.match(source, /replace\(\/<\/g, ['"]\\u003c['"]\)/);
   assert.match(source, /template\.initialKeyJson\s*=\s*detailJsonForHtml_/);
   assert.match(source, /template\.initialErrorJson\s*=\s*detailJsonForHtml_/);
   assert.match(source, /template\.runtimeJson\s*=\s*detailJsonForHtml_/);
   assert.doesNotMatch(source, /template\.initialKey\s*=\s*JSON\.stringify\(String\(e/);
+
+  const context = {};
+  vm.runInNewContext(source, context);
+  const escaped = context.detailJsonForHtml_({
+    title: '</script><script>alert(1)</script>&',
+    separators: '\u2028\u2029'
+  });
+
+  assert.doesNotMatch(escaped, /<\/script>|<script>|&/);
+  assert.match(escaped, /\\u003c\/script\\u003e/);
+  assert.match(escaped, /\\u0026/);
+  assert.match(escaped, /\\u2028/);
+  assert.match(escaped, /\\u2029/);
 });
 
 test('detail UI contains required sections, renders sheet values with textContent, and has no edit controls', () => {
