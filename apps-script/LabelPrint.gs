@@ -120,7 +120,7 @@ function buildLabelPrintBrowseItem_(asset, currentState, issueRows, settings, lo
 
 function labelPrintBrowseItemToRow_(item) {
   return [
-    false,
+    item.validation.ok ? false : '',
     item.printType,
     item.newAssetNo,
     item.name,
@@ -369,7 +369,9 @@ function applyLabelPrintSheetFilter(request) {
 function setLabelPrintSelections_(sheet, predicate) {
   var rows = readLabelPrintWorkRows_(sheet);
   if (!rows.length) return updateLabelPrintSelectionSummary_(sheet);
-  var values = rows.map(function (row) { return [!!predicate(row)]; });
+  var values = rows.map(function (row) {
+    return [row.printability === '출력가능' ? !!predicate(row) : ''];
+  });
   sheet.getRange(5, 1, values.length, 1).setValues(values);
   return updateLabelPrintSelectionSummary_(sheet);
 }
@@ -402,11 +404,26 @@ function getSelectedLabelPrintSystemIds() {
   }).map(function (row) { return row.systemId; });
 }
 
+function getLabelPrintPanelUrl_() {
+  var serviceUrl = ScriptApp.getService().getUrl() || '';
+  return serviceUrl ? serviceUrl + '?view=label-panel' : '';
+}
+
 function showLabelPrintPanel() {
-  var html = HtmlService.createTemplateFromFile('LabelPrintPanel')
-    .evaluate()
-    .setTitle('QR 라벨 작업 패널');
-  SpreadsheetApp.getUi().showSidebar(html);
+  var panelUrl = getLabelPrintPanelUrl_();
+  try {
+    var html = HtmlService.createTemplateFromFile('LabelPrintPanel')
+      .evaluate()
+      .setTitle('QR 라벨 작업 패널');
+    SpreadsheetApp.getUi().showSidebar(html);
+    return { shown: true, panelUrl: panelUrl };
+  } catch (error) {
+    return {
+      shown: false,
+      panelUrl: panelUrl,
+      error: String(error && error.message || error)
+    };
+  }
 }
 
 function writeLabelPrintPanelLink_(sheet, panelUrl) {
@@ -425,21 +442,26 @@ function installLabelPrintUi() {
     if (trigger.getHandlerFunction() === 'labelPrintOnOpen_') ScriptApp.deleteTrigger(trigger);
   });
   ScriptApp.newTrigger('labelPrintOnOpen_').forSpreadsheet(ss).onOpen().create();
-  var panelUrl = ScriptApp.getService().getUrl() || '';
-  writeLabelPrintPanelLink_(ensureLabelPrintSheetExists_(ss), panelUrl ? panelUrl + '?view=label-panel' : '');
-  labelPrintOnOpen_();
-  return { installed: true, panelUrl: panelUrl ? panelUrl + '?view=label-panel' : '' };
+  var panelUrl = getLabelPrintPanelUrl_();
+  writeLabelPrintPanelLink_(ensureLabelPrintSheetExists_(ss), panelUrl);
+  var uiInstalled = labelPrintOnOpen_();
+  return { installed: true, uiInstalled: uiInstalled, panelUrl: panelUrl };
 }
 
 function labelPrintOnOpen_(event) {
-  SpreadsheetApp.getUi()
-    .createMenu('QR 라벨')
-    .addItem('작업 패널 열기', 'showLabelPrintPanel')
-    .addSeparator()
-    .addItem('목록 새로고침', 'refreshLabelPrintSheet')
-    .addItem('현재 필터 전체선택', 'selectVisibleLabelPrintRows')
-    .addItem('선택해제', 'clearLabelPrintSelection')
-    .addItem('재출력 대상 선택', 'selectReprintLabelRows')
-    .addItem('선택 라벨 미리보기', 'createSelectedLabelPrintPreview')
-    .addToUi();
+  try {
+    SpreadsheetApp.getUi()
+      .createMenu('QR 라벨')
+      .addItem('작업 패널 열기', 'showLabelPrintPanel')
+      .addSeparator()
+      .addItem('목록 새로고침', 'refreshLabelPrintSheet')
+      .addItem('현재 필터 전체선택', 'selectVisibleLabelPrintRows')
+      .addItem('선택해제', 'clearLabelPrintSelection')
+      .addItem('재출력 대상 선택', 'selectReprintLabelRows')
+      .addItem('선택 라벨 미리보기', 'createSelectedLabelPrintPreview')
+      .addToUi();
+    return true;
+  } catch (error) {
+    return false;
+  }
 }
