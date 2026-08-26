@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif;color:#172033;background:#f6f7f9}
+    *{box-sizing:border-box}body{margin:0;padding:14px;background:#f6f7f9}.stack{display:grid;gap:12px}.card{background:#fff;border:1px solid #e4e7ec;border-radius:14px;padding:13px}.title{font-size:18px;font-weight:900}.muted{font-size:12px;color:#667085;line-height:1.45}.runtime{font-size:12px;font-weight:800;margin-top:4px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.field{display:grid;gap:5px}.field.full{grid-column:1/-1}label{font-size:12px;font-weight:800}input,select,button{font:inherit}input,select{width:100%;height:40px;border:1px solid #d0d5dd;border-radius:10px;padding:0 10px;background:#fff}.actions{display:grid;gap:8px}button{border:0;border-radius:11px;min-height:44px;font-weight:850;cursor:pointer}button.primary{background:#172033;color:white}button.soft{background:#fff;border:1px solid #d0d5dd;color:#172033}button.warn{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa}button:disabled{opacity:.5;cursor:wait}.summary{font-weight:900;font-size:15px}.message{font-size:12px;line-height:1.5;min-height:18px}.message.error{color:#b42318}.message.ok{color:#166534}#preview-fallback{display:none;margin-top:7px;font-size:12px;word-break:break-all}
+  </style>
+</head>
+<body>
+  <div class="stack">
+    <div class="card">
+      <div class="title">QR 라벨 작업 패널</div>
+      <div id="runtime" class="runtime">환경 확인 중…</div>
+      <div class="muted">`라벨출력` 시트에서 선택한 비품만 미리보기로 보냅니다. 목록 셀의 QR URL이나 상태값은 미리보기에서 다시 검증됩니다.</div>
+    </div>
+
+    <div class="card grid">
+      <div class="field full">
+        <label for="search">검색</label>
+        <input id="search" name="search" placeholder="비품번호 · 품명 · 시스템 ID">
+      </div>
+      <div class="field">
+        <label for="floor">층</label>
+        <select id="floor" name="floor"><option value="">전체</option></select>
+      </div>
+      <div class="field">
+        <label for="spaceName">공간</label>
+        <select id="spaceName" name="spaceName"><option value="">전체</option></select>
+      </div>
+      <div class="field full">
+        <label for="outputState">출력상태</label>
+        <select id="outputState" name="outputState"></select>
+      </div>
+      <div class="field full"><button id="apply-filter" class="soft">필터 적용</button></div>
+    </div>
+
+    <div class="card">
+      <div id="summary" class="summary">선택 0개 · 예상 0페이지</div>
+      <div class="muted">한 페이지 최대 24개 · 출력순서 층 → 공간 → 비품번호</div>
+    </div>
+
+    <div class="card actions">
+      <button id="refresh" class="soft">목록 새로고침</button>
+      <button id="select-visible" class="soft">현재 필터 전체선택</button>
+      <button id="clear-selection" class="soft">선택해제</button>
+      <button id="select-reprint" class="warn">재출력 대상 선택</button>
+      <button id="preview" class="primary">선택 라벨 미리보기</button>
+      <div id="message" class="message"></div>
+      <a id="preview-fallback" target="_blank" rel="noopener">미리보기 새 창 열기</a>
+    </div>
+  </div>
+
+<script>
+const api={
+  call(name,...args){
+    return new Promise((resolve,reject)=>{
+      google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[name](...args);
+    });
+  }
+};
+
+const state={bootstrap:null,busy:false};
+const $=id=>document.getElementById(id);
+
+function setMessage(text,type=''){
+  const el=$('message');
+  el.textContent=text||'';
+  el.className='message'+(type?' '+type:'');
+}
+
+function setBusy(value){
+  state.busy=!!value;
+  document.querySelectorAll('button').forEach(button=>button.disabled=state.busy);
+}
+
+function fillSelect(id,values,includeAll=true){
+  const select=$(id);
+  select.textContent='';
+  if(includeAll){
+    const option=document.createElement('option');
+    option.value=''; option.textContent='전체'; select.appendChild(option);
+  }
+  (values||[]).forEach(value=>{
+    const option=document.createElement('option');
+    option.value=value; option.textContent=value; select.appendChild(option);
+  });
+}
+
+function renderStatus(status){
+  const s=status||{};
+  $('summary').textContent=`선택 ${s.selected||0}개 · 예상 ${s.estimatedPages||0}페이지 · 출력가능 ${s.printable||0}/${s.total||0}`;
+}
+
+function renderBootstrap(data){
+  state.bootstrap=data;
+  const runtime=data?.runtime;
+  $('runtime').textContent=runtime ? `${runtime.environment} · ${runtime.spreadsheetTitle}` : '환경 정보 없음';
+  fillSelect('floor',data?.floors||[]);
+  fillSelect('spaceName',data?.spaces||[]);
+  fillSelect('outputState',data?.outputStates||['전체'],false);
+  renderStatus(data?.status);
+}
+
+async function reloadBootstrap(){
+  const data=await api.call('getLabelPrintPanelBootstrap');
+  renderBootstrap(data);
+  return data;
+}
+
+function filters(){
+  return {
+    search:$('search').value,
+    floor:$('floor').value,
+    spaceName:$('spaceName').value,
+    outputState:$('outputState').value||'전체'
+  };
+}
+
+async function runAction(name,args,successText){
+  setBusy(true); setMessage('처리 중…');
+  try{
+    const result=await api.call(name,...(args||[]));
+    renderStatus(result?.status||result);
+    setMessage(successText||'완료되었습니다.','ok');
+    return result;
+  }catch(error){
+    setMessage(error?.message||String(error),'error');
+    throw error;
+  }finally{setBusy(false)}
+}
+
+$('apply-filter').addEventListener('click',()=>runAction('applyLabelPrintSheetFilter',[filters()],'필터를 적용했습니다.').catch(()=>{}));
+$('refresh').addEventListener('click',async()=>{
+  try{
+    await runAction('refreshLabelPrintSheet',[],'목록을 최신 원장 기준으로 새로고침했습니다.');
+    await reloadBootstrap();
+  }catch(_){ }
+});
+$('select-visible').addEventListener('click',()=>runAction('selectVisibleLabelPrintRows',[],'현재 보이는 출력가능 비품을 선택했습니다.').catch(()=>{}));
+$('clear-selection').addEventListener('click',()=>runAction('clearLabelPrintSelection',[],'선택을 해제했습니다.').catch(()=>{}));
+$('select-reprint').addEventListener('click',()=>runAction('selectReprintLabelRows',[],'현재 보이는 재출력 대상을 선택했습니다.').catch(()=>{}));
+
+$('preview').addEventListener('click',async()=>{
+  const popup=window.open('about:blank','_blank');
+  $('preview-fallback').style.display='none';
+  setBusy(true); setMessage('미리보기를 준비 중…');
+  try{
+    const result=await api.call('createSelectedLabelPrintPreview');
+    const url=typeof result==='string'?result:result?.url;
+    if(!url) throw new Error('미리보기 URL을 만들지 못했습니다.');
+    if(popup){
+      popup.location.href=url;
+      setMessage('미리보기를 새 창에서 열었습니다.','ok');
+    }else{
+      const fallback=$('preview-fallback');
+      fallback.href=url;
+      fallback.style.display='block';
+      setMessage('팝업이 차단되었습니다. 아래 링크를 눌러 미리보기를 여세요.','error');
+    }
+  }catch(error){
+    if(popup) popup.close();
+    setMessage(error?.message||String(error),'error');
+  }finally{setBusy(false)}
+});
+
+reloadBootstrap().catch(error=>setMessage(error?.message||String(error),'error'));
+</script>
+</body>
+</html>
