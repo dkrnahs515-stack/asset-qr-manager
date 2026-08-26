@@ -157,7 +157,6 @@ function refreshLabelPrintSheet() {
     var labelSettingsSheet = getRequiredSheet_(ss, INVENTORY_CONFIG.SHEETS.LABEL_SETTINGS);
     var workSheet = ensureLabelPrintSheetExists_(ss);
 
-    // Resolve every source explicitly here so the refresh boundary remains easy to audit.
     if (!masterSheet || !currentStateSheet || !qrIssueSheet || !locationSheet || !labelSettingsSheet) {
       throw new Error('라벨출력 원장 시트를 모두 읽을 수 없습니다.');
     }
@@ -185,6 +184,7 @@ function refreshLabelPrintSheet() {
     var dataStartRow = 5;
     var maxDataRows = Math.max(0, workSheet.getMaxRows() - dataStartRow + 1);
     if (maxDataRows) {
+      workSheet.showRows(dataStartRow, maxDataRows);
       workSheet.getRange(dataStartRow, 1, maxDataRows, LABEL_PRINT_HEADERS.length)
         .clearContent()
         .clearDataValidations();
@@ -229,28 +229,217 @@ function refreshLabelPrintSheet() {
   }
 }
 
+function labelPrintRowToObject_(row, rowNumber) {
+  return {
+    rowNumber: rowNumber,
+    selected: row[0] === true,
+    printType: String(row[1] || '').trim(),
+    newAssetNo: String(row[2] || '').trim(),
+    name: String(row[3] || '').trim(),
+    currentFloor: String(row[4] || '').trim(),
+    currentSpaceName: String(row[5] || '').trim(),
+    currentResult: String(row[6] || '').trim(),
+    qrState: String(row[7] || '').trim(),
+    issueStatus: String(row[8] || '').trim(),
+    reprintRequired: String(row[9] || '').trim(),
+    inspectionDate: String(row[10] || '').trim(),
+    printability: String(row[11] || '').trim(),
+    systemId: String(row[12] || '').trim(),
+    qrLookupUrl: String(row[13] || '').trim(),
+    locationSortOrder: row[14] === '' ? null : Number(row[14])
+  };
+}
+
+function readLabelPrintWorkRows_(sheet) {
+  if (sheet.getLastRow() < 5) return [];
+  var count = sheet.getLastRow() - 4;
+  return sheet.getRange(5, 1, count, LABEL_PRINT_HEADERS.length).getValues()
+    .map(function (row, index) { return labelPrintRowToObject_(row, index + 5); })
+    .filter(function (row) { return !!row.systemId; });
+}
+
+function updateLabelPrintSelectionSummary_(sheet) {
+  var rows = readLabelPrintWorkRows_(sheet);
+  var printable = rows.filter(function (row) { return row.printability === '출력가능'; }).length;
+  var selected = rows.filter(function (row) { return row.selected && row.printability === '출력가능'; }).length;
+  var estimatedPages = selected ? Math.ceil(selected / 24) : 0;
+  sheet.getRange(2, 1).setValue(
+    '전체 ' + rows.length + ' · 출력가능 ' + printable + ' · 선택 ' + selected + ' · 예상 ' + estimatedPages + '페이지'
+  );
+  return { total: rows.length, printable: printable, selected: selected, estimatedPages: estimatedPages };
+}
+
 function getLabelPrintSheetStatus() {
   var ss = getSpreadsheet_();
   var sheet = ensureLabelPrintSheetExists_(ss);
-  if (sheet.getLastRow() < 5) {
-    return { total: 0, printable: 0, selected: 0, estimatedPages: 0 };
-  }
-  var rowCount = sheet.getLastRow() - 4;
-  var values = sheet.getRange(5, 1, rowCount, LABEL_PRINT_HEADERS.length).getValues();
-  var total = 0;
-  var printable = 0;
-  var selected = 0;
-  values.forEach(function (row) {
-    var systemId = String(row[12] || '').trim();
-    if (!systemId) return;
-    total += 1;
-    if (String(row[11] || '') === '출력가능') printable += 1;
-    if (row[0] === true) selected += 1;
-  });
+  return updateLabelPrintSelectionSummary_(sheet);
+}
+
+function uniqueLabelPrintValues_(values) {
+  var seen = {};
+  return (values || []).map(function (value) { return String(value || '').trim(); })
+    .filter(function (value) {
+      if (!value || seen[value]) return false;
+      seen[value] = true;
+      return true;
+    }).sort(function (a, b) { return a.localeCompare(b, 'ko', { numeric: true }); });
+}
+
+function getLabelPrintPanelBootstrap() {
+  var ss = getSpreadsheet_();
+  var sheet = ensureLabelPrintSheetExists_(ss);
+  var rows = readLabelPrintWorkRows_(sheet);
+  var serviceUrl = ScriptApp.getService().getUrl() || '';
   return {
-    total: total,
-    printable: printable,
-    selected: selected,
-    estimatedPages: selected ? Math.ceil(selected / 24) : 0
+    runtime: getRuntimeEnvironmentStatus(),
+    status: updateLabelPrintSelectionSummary_(sheet),
+    floors: uniqueLabelPrintValues_(rows.map(function (row) { return row.currentFloor; })),
+    spaces: uniqueLabelPrintValues_(rows.map(function (row) { return row.currentSpaceName; })),
+    outputStates: ['전체', '출력가능', '출력불가', '최초발급', '재출력', '재출력필요'],
+    panelUrl: serviceUrl ? serviceUrl + '?view=label-panel' : ''
   };
+}
+
+function labelPrintRowMatchesFilter_(row, request) {
+  var search = String(request.search || '').trim().toLowerCase();
+  var floor = String(request.floor || '').trim();
+  var spaceName = String(request.spaceName || '').trim();
+  var outputState = String(request.outputState || '전체').trim();
+
+  if (search) {
+    var haystack = [row.newAssetNo, row.name, row.systemId].join(' ').toLowerCase();
+    if (haystack.indexOf(search) < 0) return false;
+  }
+  if (floor && row.currentFloor !== floor) return false;
+  if (spaceName && row.currentSpaceName !== spaceName) return false;
+
+  if (outputState === '출력가능' && row.printability !== '출력가능') return false;
+  if (outputState === '출력불가' && row.printability === '출력가능') return false;
+  if (outputState === '최초발급' && row.printType !== '최초발급') return false;
+  if (outputState === '재출력' && row.printType !== '재출력') return false;
+  if (outputState === '재출력필요' && !(row.reprintRequired === 'Y' || row.issueStatus === '재발급필요')) return false;
+  return true;
+}
+
+function hideLabelPrintRows_(sheet, rowNumbers) {
+  if (!rowNumbers.length) return;
+  var sorted = rowNumbers.slice().sort(function (a, b) { return a - b; });
+  var start = sorted[0];
+  var previous = sorted[0];
+  for (var i = 1; i <= sorted.length; i += 1) {
+    var current = sorted[i];
+    if (current === previous + 1) {
+      previous = current;
+      continue;
+    }
+    sheet.hideRows(start, previous - start + 1);
+    start = current;
+    previous = current;
+  }
+}
+
+function applyLabelPrintSheetFilter(request) {
+  request = request || {};
+  var search = String(request.search || '').trim();
+  var floor = String(request.floor || '').trim();
+  var spaceName = String(request.spaceName || '').trim();
+  var outputState = String(request.outputState || '전체').trim();
+  var ss = getSpreadsheet_();
+  var sheet = ensureLabelPrintSheetExists_(ss);
+  var rows = readLabelPrintWorkRows_(sheet);
+
+  if (rows.length) sheet.showRows(5, rows.length);
+  var hidden = rows.filter(function (row) {
+    return !labelPrintRowMatchesFilter_(row, {
+      search: search,
+      floor: floor,
+      spaceName: spaceName,
+      outputState: outputState
+    });
+  }).map(function (row) { return row.rowNumber; });
+  hideLabelPrintRows_(sheet, hidden);
+
+  return {
+    filters: { search: search, floor: floor, spaceName: spaceName, outputState: outputState },
+    visible: rows.length - hidden.length,
+    status: updateLabelPrintSelectionSummary_(sheet)
+  };
+}
+
+function setLabelPrintSelections_(sheet, predicate) {
+  var rows = readLabelPrintWorkRows_(sheet);
+  if (!rows.length) return updateLabelPrintSelectionSummary_(sheet);
+  var values = rows.map(function (row) { return [!!predicate(row)]; });
+  sheet.getRange(5, 1, values.length, 1).setValues(values);
+  return updateLabelPrintSelectionSummary_(sheet);
+}
+
+function selectVisibleLabelPrintRows() {
+  var sheet = ensureLabelPrintSheetExists_(getSpreadsheet_());
+  return setLabelPrintSelections_(sheet, function (row) {
+    return !sheet.isRowHiddenByUser(row.rowNumber) && row.printability === '출력가능';
+  });
+}
+
+function clearLabelPrintSelection() {
+  var sheet = ensureLabelPrintSheetExists_(getSpreadsheet_());
+  return setLabelPrintSelections_(sheet, function () { return false; });
+}
+
+function selectReprintLabelRows() {
+  var sheet = ensureLabelPrintSheetExists_(getSpreadsheet_());
+  return setLabelPrintSelections_(sheet, function (row) {
+    if (sheet.isRowHiddenByUser(row.rowNumber)) return false;
+    if (row.printability !== '출력가능') return false;
+    return row.reprintRequired === 'Y' || row.issueStatus === '재발급필요';
+  });
+}
+
+function getSelectedLabelPrintSystemIds() {
+  var sheet = ensureLabelPrintSheetExists_(getSpreadsheet_());
+  return readLabelPrintWorkRows_(sheet).filter(function (row) {
+    return row.selected && row.printability === '출력가능';
+  }).map(function (row) { return row.systemId; });
+}
+
+function showLabelPrintPanel() {
+  var html = HtmlService.createTemplateFromFile('LabelPrintPanel')
+    .evaluate()
+    .setTitle('QR 라벨 작업 패널');
+  SpreadsheetApp.getUi().showSidebar(html);
+}
+
+function writeLabelPrintPanelLink_(sheet, panelUrl) {
+  if (!panelUrl) return;
+  var richText = SpreadsheetApp.newRichTextValue()
+    .setText('QR 라벨 출력 작업 · 패널 열기')
+    .setLinkUrl(panelUrl)
+    .build();
+  sheet.getRange(1, 1).setRichTextValue(richText);
+}
+
+function installLabelPrintUi() {
+  var ss = getSpreadsheet_();
+  ensureLabelPrintSheetExists_(ss);
+  ScriptApp.getProjectTriggers().forEach(function (trigger) {
+    if (trigger.getHandlerFunction() === 'labelPrintOnOpen_') ScriptApp.deleteTrigger(trigger);
+  });
+  ScriptApp.newTrigger('labelPrintOnOpen_').forSpreadsheet(ss).onOpen().create();
+  var panelUrl = ScriptApp.getService().getUrl() || '';
+  writeLabelPrintPanelLink_(ensureLabelPrintSheetExists_(ss), panelUrl ? panelUrl + '?view=label-panel' : '');
+  labelPrintOnOpen_();
+  return { installed: true, panelUrl: panelUrl ? panelUrl + '?view=label-panel' : '' };
+}
+
+function labelPrintOnOpen_(event) {
+  SpreadsheetApp.getUi()
+    .createMenu('QR 라벨')
+    .addItem('작업 패널 열기', 'showLabelPrintPanel')
+    .addSeparator()
+    .addItem('목록 새로고침', 'refreshLabelPrintSheet')
+    .addItem('현재 필터 전체선택', 'selectVisibleLabelPrintRows')
+    .addItem('선택해제', 'clearLabelPrintSelection')
+    .addItem('재출력 대상 선택', 'selectReprintLabelRows')
+    .addItem('선택 라벨 미리보기', 'createSelectedLabelPrintPreview')
+    .addToUi();
 }
