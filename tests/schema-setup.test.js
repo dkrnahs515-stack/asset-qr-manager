@@ -94,16 +94,17 @@ test('label-print work sheet has the exact 15-column row-four contract', () => {
   assert.match(source, /hideColumns\(13,\s*3\)/);
 });
 
-test('session metadata and Code.gs sheet constants are declared', () => {
+test('session metadata and shared sheet names are declared', () => {
   const schema = read('apps-script/SchemaSetup.gs');
   const code = read('apps-script/Code.gs');
+  const labelPrint = read('apps-script/LabelPrint.gs');
   for (const header of ['조사구분', '조사차수', '조사표기명', '조사목적']) {
     assert.ok(schema.includes(`'${header}'`), `missing session metadata header: ${header}`);
   }
   assert.match(code, /CURRENT_STATE:\s*'비품현재상태'/);
   assert.match(code, /QR_ISSUE:\s*'QR발급관리'/);
   assert.match(code, /LABEL_SETTINGS:\s*'라벨설정'/);
-  assert.match(code, /LABEL_PRINT:\s*'라벨출력'/);
+  assert.match(labelPrint, /LABEL_PRINT_SHEET_NAME\s*=\s*'라벨출력'/);
 });
 
 test('derived label-print sheet is not a runtime-required source sheet', () => {
