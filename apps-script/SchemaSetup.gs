@@ -14,6 +14,12 @@ var QR_ISSUE_HEADERS = [
   '재출력사유', '재출력횟수', '최종출력배치ID', '비고'
 ];
 
+var LABEL_PRINT_HEADERS = [
+  '출력선택', '출력구분', 'New 비품번호', '품명', '현재층', '현재공간명',
+  '현재조사결과', 'QR상태', 'QR발급상태', '재출력필요', '최근조사일',
+  '출력가능여부', '영구 시스템 ID', 'QR조회URL', '위치정렬순서'
+];
+
 var SESSION_METADATA_HEADERS = ['조사구분', '조사차수', '조사표기명', '조사목적'];
 var ASSET_QR_EXPECTED_ASSET_COUNT = 842;
 
@@ -27,6 +33,7 @@ var LABEL_SETTING_DEFAULTS = [
   ['기본 조사일자', ''],
   ['QR 안내문구', '최신 위치·조사이력 확인'],
   ['기본 라벨규격', 'FORMTEC_LS3106'],
+  ['라벨버전', 'LABEL-2026-01'],
   ['상세조회배포URL', ''],
   ['라벨가로mm', '64'],
   ['라벨세로mm', '33.9'],
@@ -37,8 +44,9 @@ var LABEL_SETTING_DEFAULTS = [
   ['열간격mm', '2.5'],
   ['행간격mm', '0'],
   ['QR크기mm', '20'],
-  ['가로보정mm', '0'],
-  ['세로보정mm', '0'],
+  ['가로보정mm', '-1.8'],
+  ['세로보정mm', '2.7'],
+  ['3열가로보정mm', '0.3'],
   ['열간격보정mm', '0'],
   ['행간격보정mm', '0'],
   ['인쇄배율', '100']
@@ -62,6 +70,7 @@ function installAssetQrSchema() {
     ensureSheetSchema_(ss, 'QR발급관리', QR_ISSUE_HEADERS, report);
     var labelSheet = ensureSheetSchema_(ss, '라벨설정', ['설정항목', '설정값'], report);
     seedLabelSettings_(labelSheet, report);
+    ensureLabelPrintWorkSheet_(ss, report);
 
     var sessionSheet = ss.getSheetByName('전수조사세션');
     if (!sessionSheet) throw new Error('필수 시트를 찾을 수 없습니다: 전수조사세션');
@@ -101,6 +110,33 @@ function ensureSheetSchema_(ss, sheetName, desiredHeaders, report) {
   report.addedHeaders[sheetName] = missingHeaders.slice();
   sheet.setFrozenRows(1);
   applySchemaValidations_(sheet, sheetName);
+  return sheet;
+}
+
+function ensureLabelPrintWorkSheet_(ss, report) {
+  var sheet = ss.getSheetByName('라벨출력');
+  var created = false;
+  if (!sheet) {
+    sheet = ss.insertSheet('라벨출력');
+    created = true;
+    report.createdSheets.push('라벨출력');
+  }
+
+  ensureSheetCapacity_(sheet, LABEL_PRINT_HEADERS.length);
+  if (sheet.getMaxRows() < 5) sheet.insertRowsAfter(sheet.getMaxRows(), 5 - sheet.getMaxRows());
+
+  sheet.getRange(1, 1, 1, LABEL_PRINT_HEADERS.length).mergeAcross();
+  sheet.getRange(1, 1).setValue('QR 라벨 출력 작업');
+  sheet.getRange(2, 1, 1, LABEL_PRINT_HEADERS.length).mergeAcross();
+  sheet.getRange(2, 1).setValue('목록을 새로고침한 뒤 출력할 비품을 선택하세요.');
+  sheet.getRange(3, 1, 1, LABEL_PRINT_HEADERS.length).mergeAcross();
+  sheet.getRange(3, 1).setValue('출력 완료 반영 전에는 QR발급관리 이력이 변경되지 않습니다.');
+  sheet.getRange(4, 1, 1, LABEL_PRINT_HEADERS.length).setValues([LABEL_PRINT_HEADERS]);
+  sheet.setFrozenRows(4);
+  sheet.setHiddenGridlines(true);
+  sheet.hideColumns(13, 3);
+
+  report.addedHeaders['라벨출력'] = created ? LABEL_PRINT_HEADERS.slice() : [];
   return sheet;
 }
 
