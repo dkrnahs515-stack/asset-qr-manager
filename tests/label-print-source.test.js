@@ -77,7 +77,8 @@ test('filters support search, floor, space, and output state and use row visibil
   const body = functionBody(source, 'applyLabelPrintSheetFilter');
   for (const field of ['search', 'floor', 'spaceName', 'outputState']) assert.ok(body.includes(field), `missing filter ${field}`);
   assert.match(body, /showRows\(/);
-  assert.match(body, /hideRows\(/);
+  assert.match(body, /hideLabelPrintRows_\(/);
+  assert.match(source, /sheet\.hideRows\(/);
   assert.doesNotMatch(body, /deleteRow\(|deleteRows\(/);
 });
 
