@@ -56,3 +56,65 @@ test('runtime validation does not require the derived label-print sheet', () => 
   const requiredBlock = runtime.split('var ASSET_RUNTIME_REQUIRED_SHEETS = [')[1].split('];')[0];
   assert.doesNotMatch(requiredBlock, /라벨출력/);
 });
+
+test('label print server exposes filters, selection controls, panel, and installable onOpen UI', () => {
+  const source = read('apps-script/LabelPrint.gs');
+  for (const fn of [
+    'getLabelPrintPanelBootstrap',
+    'applyLabelPrintSheetFilter',
+    'selectVisibleLabelPrintRows',
+    'clearLabelPrintSelection',
+    'selectReprintLabelRows',
+    'getSelectedLabelPrintSystemIds',
+    'showLabelPrintPanel',
+    'installLabelPrintUi',
+    'labelPrintOnOpen_'
+  ]) assert.match(source, new RegExp(`function ${fn}\\(`), `missing ${fn}`);
+});
+
+test('filters support search, floor, space, and output state and use row visibility instead of deleting rows', () => {
+  const source = read('apps-script/LabelPrint.gs');
+  const body = functionBody(source, 'applyLabelPrintSheetFilter');
+  for (const field of ['search', 'floor', 'spaceName', 'outputState']) assert.ok(body.includes(field), `missing filter ${field}`);
+  assert.match(body, /showRows\(/);
+  assert.match(body, /hideRows\(/);
+  assert.doesNotMatch(body, /deleteRow\(|deleteRows\(/);
+});
+
+test('bulk selection respects visible rows, printability, and reprint flags', () => {
+  const source = read('apps-script/LabelPrint.gs');
+  const visible = functionBody(source, 'selectVisibleLabelPrintRows');
+  const reprint = functionBody(source, 'selectReprintLabelRows');
+  assert.match(visible, /isRowHiddenByUser\(/);
+  assert.match(visible, /출력가능/);
+  assert.match(reprint, /재발급필요/);
+  assert.match(reprint, /===\s*'Y'/);
+  assert.match(source, /Math\.ceil\(selected\s*\/\s*24\)/);
+});
+
+test('installLabelPrintUi creates one installable spreadsheet onOpen trigger and a direct panel URL fallback', () => {
+  const source = read('apps-script/LabelPrint.gs');
+  const install = functionBody(source, 'installLabelPrintUi');
+  assert.match(install, /ScriptApp\.getProjectTriggers\(\)/);
+  assert.match(install, /getHandlerFunction\(\).*labelPrintOnOpen_/);
+  assert.match(install, /ScriptApp\.newTrigger\('labelPrintOnOpen_'\)/);
+  assert.match(install, /forSpreadsheet\(/);
+  assert.match(install, /\.onOpen\(\)/);
+  assert.match(install, /ScriptApp\.getService\(\)\.getUrl\(\)/);
+  assert.match(install, /\?view=label-panel/);
+
+  const onOpen = functionBody(source, 'labelPrintOnOpen_');
+  assert.match(onOpen, /createMenu\('QR 라벨'\)/);
+});
+
+test('label print panel contains all approved controls and popup-blocker fallback', () => {
+  const panel = read('apps-script/LabelPrintPanel.html');
+  for (const label of ['목록 새로고침', '현재 필터 전체선택', '선택해제', '재출력 대상 선택', '선택 라벨 미리보기']) {
+    assert.ok(panel.includes(label), `missing panel action: ${label}`);
+  }
+  for (const filter of ['search', 'floor', 'spaceName', 'outputState']) assert.ok(panel.includes(filter), `missing panel filter: ${filter}`);
+  assert.match(panel, /google\.script\.run/);
+  assert.match(panel, /window\.open\(['"]about:blank['"],\s*['"]_blank['"]\)/);
+  assert.match(panel, /preview-fallback/);
+  assert.match(panel, /estimatedPages/);
+});
