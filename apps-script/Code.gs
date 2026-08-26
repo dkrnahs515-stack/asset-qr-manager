@@ -8,15 +8,44 @@ var INVENTORY_CONFIG = {
     CHANGE_LOG: '변경이력',
     CURRENT_STATE: '비품현재상태',
     QR_ISSUE: 'QR발급관리',
-    LABEL_SETTINGS: '라벨설정'
+    LABEL_SETTINGS: '라벨설정',
+    LABEL_PRINT: '라벨출력'
   }
 };
 
-function doGet() {
+function doGet(e) {
+  var parameters = e && e.parameter ? e.parameter : {};
+  var view = String(parameters.view || '').trim();
+
+  if (view === 'label-panel') {
+    return HtmlService.createTemplateFromFile('LabelPrintPanel')
+      .evaluate()
+      .setTitle('QR 라벨 작업 패널')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
+  }
+
+  if (view === 'label-print') {
+    var previewToken = String(parameters.token || '').trim();
+    if (!/^[A-Za-z0-9_-]{32,64}$/.test(previewToken)) {
+      return HtmlService.createHtmlOutput('유효하지 않은 라벨 미리보기 주소입니다.')
+        .setTitle('QR 비품 라벨 미리보기');
+    }
+    var template = HtmlService.createTemplateFromFile('LabelPrintPreview');
+    template.previewToken = previewToken;
+    return template
+      .evaluate()
+      .setTitle('QR 비품 라벨 미리보기')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
+  }
+
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
     .setTitle('강서청소년회관 비품 전수조사')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
+}
+
+function includeHtml_(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
 function getBootstrapData() {
