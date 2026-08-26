@@ -77,13 +77,19 @@ test('snapshot freezes printed facts and stores cache chunks by page for six hou
     'managerVersion'
   ]) assert.ok(settingsSnapshot.includes(field), `print settings snapshot missing ${field}`);
 
+  const manifestKey = functionBody(source, 'labelPrintPreviewManifestKey_');
+  const pageKey = functionBody(source, 'labelPrintPreviewPageKey_');
+  assert.match(manifestKey, /LPV:/);
+  assert.match(manifestKey, /:manifest/);
+  assert.match(pageKey, /LPV:/);
+  assert.match(pageKey, /:page:/);
+
   const store = functionBody(source, 'storeLabelPrintPreviewSnapshot_');
   assert.match(store, /CacheService\.getScriptCache\(\)/);
-  assert.match(store, /LPV:/);
-  assert.match(store, /:manifest/);
-  assert.match(store, /:page:/);
-  assert.match(store, /21600/);
-  assert.match(store, /24/);
+  assert.match(store, /labelPrintPreviewManifestKey_/);
+  assert.match(store, /labelPrintPreviewPageKey_/);
+  assert.match(source, /LABEL_PRINT_PREVIEW_CACHE_TTL_SECONDS\s*=\s*21600/);
+  assert.match(store, /compactPage\.length > 24/);
 });
 
 test('preview load accepts only opaque tokens and revalidates environment and active QR identity', () => {
