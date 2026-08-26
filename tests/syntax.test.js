@@ -9,6 +9,13 @@ function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
 }
 
+function inlineScripts(relativePath) {
+  const source = read(relativePath);
+  return [...source.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)]
+    .map(match => match[1].trim())
+    .filter(Boolean);
+}
+
 test('Apps Script server files parse as JavaScript', () => {
   for (const file of [
     'apps-script/Core.js',
@@ -30,13 +37,17 @@ test('Apps Script server files parse as JavaScript', () => {
 });
 
 test('inline mobile client script parses as JavaScript', () => {
-  const source = read('apps-script/Index.html');
-  const scripts = [...source.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)]
-    .map(match => match[1].trim())
-    .filter(Boolean);
-
+  const scripts = inlineScripts('apps-script/Index.html');
   assert.ok(scripts.length >= 1, 'Index.html should contain an inline application script');
   for (const script of scripts) {
     assert.doesNotThrow(() => new Function(script), 'inline application script should parse');
+  }
+});
+
+test('inline label print panel script parses as JavaScript', () => {
+  const scripts = inlineScripts('apps-script/LabelPrintPanel.html');
+  assert.ok(scripts.length >= 1, 'LabelPrintPanel.html should contain an inline application script');
+  for (const script of scripts) {
+    assert.doesNotThrow(() => new Function(script), 'label print panel script should parse');
   }
 });
