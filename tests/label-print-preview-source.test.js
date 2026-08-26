@@ -63,11 +63,19 @@ test('snapshot freezes printed facts and stores cache chunks by page for six hou
   const source = read('apps-script/LabelPrintPreview.gs');
   const prepare = functionBody(source, 'prepareLabelPrintPreview');
   for (const field of [
-    'batchId', 'environment', 'printSettings', 'labelType', 'labelVersion', 'labelTitle',
-    'primaryManager', 'secondaryManager', 'managerVersion', 'inspectionDate', 'accessKey',
+    'batchId', 'environment', 'printSettings', 'inspectionDate', 'accessKey',
     'qrUrl', 'newAssetNo', 'name', 'currentFloor', 'currentSpaceName', 'currentResult',
     'printType', 'locationSortOrder'
   ]) assert.ok(prepare.includes(field), `snapshot missing ${field}`);
+
+  const settingsSnapshot = functionBody(source, 'buildLabelPrintSettingsSnapshot_');
+  for (const field of [
+    'labelType', 'labelVersion', 'labelTitle', 'labelWidthMm', 'labelHeightMm',
+    'columns', 'rows', 'pageSize', 'leftMarginMm', 'topMarginMm', 'columnGapMm',
+    'rowGapMm', 'qrSizeMm', 'xCorrectionMm', 'yCorrectionMm',
+    'thirdColumnXCorrectionMm', 'printScale', 'primaryManager', 'secondaryManager',
+    'managerVersion'
+  ]) assert.ok(settingsSnapshot.includes(field), `print settings snapshot missing ${field}`);
 
   const store = functionBody(source, 'storeLabelPrintPreviewSnapshot_');
   assert.match(store, /CacheService\.getScriptCache\(\)/);
