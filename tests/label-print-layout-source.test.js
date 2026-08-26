@@ -37,7 +37,7 @@ test('approved label content and typography remain fixed', () => {
   assert.match(preview, /0\.1/);
   assert.match(preview, /light-divider/);
   assert.match(preview, /TEST PILOT/);
-  assert.match(preview, /model\.environment\s*===\s*['"]TEST['"]/);
+  assert.match(preview, /(?:model\.)?environment\s*===\s*['"]TEST['"]/);
 });
 
 test('QR visual is 20mm-class, generated as local scalable SVG, and never sent to an external QR service', () => {
