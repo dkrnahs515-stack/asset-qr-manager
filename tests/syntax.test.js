@@ -31,7 +31,8 @@ test('Apps Script server files parse as JavaScript', () => {
     'apps-script/CurrentState.gs',
     'apps-script/QrAdmin.gs',
     'apps-script/LabelPrint.gs',
-    'apps-script/LabelPrintPreview.gs'
+    'apps-script/LabelPrintPreview.gs',
+    'apps-script/LabelPrintCompletion.gs'
   ]) {
     assert.doesNotThrow(() => new Function(read(file)), `${file} should parse`);
   }
