@@ -124,3 +124,25 @@ test('selected preview URL uses the existing web-app deployment and a token only
   assert.match(body, /\?view=label-print&token=/);
   assert.doesNotMatch(body, /systemId=/);
 });
+
+test('mutable web app routes label panel and tokenized label preview while preserving survey as default', () => {
+  const source = read('apps-script/Code.gs');
+  assert.match(source, /LABEL_PRINT:\s*'라벨출력'/);
+  assert.match(source, /function doGet\(e\)/);
+  const body = functionBody(source, 'doGet');
+  assert.match(body, /view === 'label-panel'/);
+  assert.match(body, /createTemplateFromFile\('LabelPrintPanel'\)/);
+  assert.match(body, /view === 'label-print'/);
+  assert.match(body, /createTemplateFromFile\('LabelPrintPreview'\)/);
+  assert.match(body, /\^\[A-Za-z0-9_-\]\{32,64\}\$/);
+  assert.match(body, /previewToken/);
+  assert.match(body, /createTemplateFromFile\('Index'\)/);
+  assert.match(source, /function includeHtml_\(filename\)/);
+});
+
+test('label preview shell receives only validated token data from the server template', () => {
+  const preview = read('apps-script/LabelPrintPreview.html');
+  assert.match(preview, /PREVIEW_TOKEN/);
+  assert.match(preview, /previewToken/);
+  assert.doesNotMatch(preview, /systemId=|qrUrl=|accessKey=/);
+});
