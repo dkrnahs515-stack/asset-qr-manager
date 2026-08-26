@@ -43,6 +43,14 @@ test('derived sheet formats latest judgment date, falls back to master location,
   assert.match(source, /validation\.ok/);
 });
 
+test('non-printable rows keep an empty selection cell instead of a visible FALSE value', () => {
+  const source = read('apps-script/LabelPrint.gs');
+  const rowBuilder = functionBody(source, 'labelPrintBrowseItemToRow_');
+  const selector = functionBody(source, 'setLabelPrintSelections_');
+  assert.match(rowBuilder, /item\.validation\.ok\s*\?\s*false\s*:\s*''/);
+  assert.match(selector, /row\.printability\s*===\s*'출력가능'\s*\?[^:]+:\s*''/);
+});
+
 test('derived-sheet refresh never clears source sheets and preserves non-printable active assets as visible rows', () => {
   const source = read('apps-script/LabelPrint.gs');
   assert.doesNotMatch(source, /getRequiredSheet_\([^\n]*ASSET_MASTER[^\n]*\)\.clear/);
@@ -106,6 +114,19 @@ test('installLabelPrintUi creates one installable spreadsheet onOpen trigger and
 
   const onOpen = functionBody(source, 'labelPrintOnOpen_');
   assert.match(onOpen, /createMenu\('QR 라벨'\)/);
+});
+
+test('standalone Apps Script can fall back to web panel when Spreadsheet UI is unavailable', () => {
+  const source = read('apps-script/LabelPrint.gs');
+  const showPanel = functionBody(source, 'showLabelPrintPanel');
+  const install = functionBody(source, 'installLabelPrintUi');
+  const onOpen = functionBody(source, 'labelPrintOnOpen_');
+  assert.match(showPanel, /try\s*\{/);
+  assert.match(showPanel, /catch\s*\(/);
+  assert.match(showPanel, /panelUrl/);
+  assert.match(install, /uiInstalled/);
+  assert.match(onOpen, /try\s*\{/);
+  assert.match(onOpen, /catch\s*\(/);
 });
 
 test('label print panel contains all approved controls and popup-blocker fallback', () => {
