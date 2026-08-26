@@ -104,13 +104,15 @@ test('bulk selection respects visible rows, printability, and reprint flags', ()
 test('installLabelPrintUi creates one installable spreadsheet onOpen trigger and a direct panel URL fallback', () => {
   const source = read('apps-script/LabelPrint.gs');
   const install = functionBody(source, 'installLabelPrintUi');
+  const panelUrl = functionBody(source, 'getLabelPrintPanelUrl_');
   assert.match(install, /ScriptApp\.getProjectTriggers\(\)/);
   assert.match(install, /getHandlerFunction\(\).*labelPrintOnOpen_/);
   assert.match(install, /ScriptApp\.newTrigger\('labelPrintOnOpen_'\)/);
   assert.match(install, /forSpreadsheet\(/);
   assert.match(install, /\.onOpen\(\)/);
-  assert.match(install, /ScriptApp\.getService\(\)\.getUrl\(\)/);
-  assert.match(install, /\?view=label-panel/);
+  assert.match(install, /getLabelPrintPanelUrl_\(\)/);
+  assert.match(panelUrl, /ScriptApp\.getService\(\)\.getUrl\(\)/);
+  assert.match(panelUrl, /\?view=label-panel/);
 
   const onOpen = functionBody(source, 'labelPrintOnOpen_');
   assert.match(onOpen, /createMenu\('QR 라벨'\)/);
