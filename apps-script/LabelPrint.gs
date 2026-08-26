@@ -1,3 +1,5 @@
+var LABEL_PRINT_SHEET_NAME = '라벨출력';
+
 function readLabelSettingsMap_(sheet) {
   var headers = getHeaders_(sheet);
   var index = requireHeaders_(headers, ['설정항목', '설정값'], sheet.getName());
@@ -137,7 +139,7 @@ function labelPrintBrowseItemToRow_(item) {
 }
 
 function ensureLabelPrintSheetExists_(ss) {
-  var sheet = ss.getSheetByName(INVENTORY_CONFIG.SHEETS.LABEL_PRINT);
+  var sheet = ss.getSheetByName(LABEL_PRINT_SHEET_NAME);
   if (sheet) return sheet;
   var report = { createdSheets: [], addedHeaders: {}, seededSettings: [] };
   return ensureLabelPrintWorkSheet_(ss, report);
