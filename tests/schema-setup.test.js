@@ -22,6 +22,12 @@ const qrIssueHeaders = [
   '재출력사유', '재출력횟수', '최종출력배치ID', '비고'
 ];
 
+const labelPrintHeaders = [
+  '출력선택', '출력구분', 'New 비품번호', '품명', '현재층', '현재공간명',
+  '현재조사결과', 'QR상태', 'QR발급상태', '재출력필요', '최근조사일',
+  '출력가능여부', '영구 시스템 ID', 'QR조회URL', '위치정렬순서'
+];
+
 test('schema installer declares all three QR subsystem sheets and exact headers', () => {
   const source = read('apps-script/SchemaSetup.gs');
   assert.match(source, /function installAssetQrSchema\(\)/);
@@ -64,6 +70,7 @@ test('label settings include approved managers and exact Formtec defaults', () =
     "['관리책임자 정', '김은영']",
     "['관리책임자 부', '김정훈']",
     "['기본 라벨규격', 'FORMTEC_LS3106']",
+    "['라벨버전', 'LABEL-2026-01']",
     "['라벨가로mm', '64']",
     "['라벨세로mm', '33.9']",
     "['페이지열수', '3']",
@@ -71,23 +78,45 @@ test('label settings include approved managers and exact Formtec defaults', () =
     "['페이지왼쪽여백mm', '6.5']",
     "['페이지위쪽여백mm', '12.5']",
     "['열간격mm', '2.5']",
-    "['QR크기mm', '20']"
+    "['QR크기mm', '20']",
+    "['가로보정mm', '-1.8']",
+    "['세로보정mm', '2.7']",
+    "['3열가로보정mm', '0.3']"
   ]) assert.ok(source.includes(required), `missing setting: ${required}`);
 });
 
-test('session metadata and Code.gs sheet constants are declared', () => {
+test('label-print work sheet has the exact 15-column row-four contract', () => {
+  const source = read('apps-script/SchemaSetup.gs');
+  assert.match(source, /var LABEL_PRINT_HEADERS = \[/);
+  for (const header of labelPrintHeaders) assert.ok(source.includes(`'${header}'`), `missing label-print header: ${header}`);
+  assert.match(source, /function ensureLabelPrintWorkSheet_\(/);
+  assert.match(source, /setFrozenRows\(4\)/);
+  assert.match(source, /hideColumns\(13,\s*3\)/);
+});
+
+test('session metadata and shared sheet names are declared', () => {
   const schema = read('apps-script/SchemaSetup.gs');
   const code = read('apps-script/Code.gs');
+  const labelPrint = read('apps-script/LabelPrint.gs');
   for (const header of ['조사구분', '조사차수', '조사표기명', '조사목적']) {
     assert.ok(schema.includes(`'${header}'`), `missing session metadata header: ${header}`);
   }
   assert.match(code, /CURRENT_STATE:\s*'비품현재상태'/);
   assert.match(code, /QR_ISSUE:\s*'QR발급관리'/);
   assert.match(code, /LABEL_SETTINGS:\s*'라벨설정'/);
+  assert.match(labelPrint, /LABEL_PRINT_SHEET_NAME\s*=\s*'라벨출력'/);
+});
+
+test('derived label-print sheet is not a runtime-required source sheet', () => {
+  const runtime = read('apps-script/RuntimeConfig.gs');
+  const required = runtime.split('var ASSET_RUNTIME_REQUIRED_SHEETS = [')[1].split('];')[0];
+  assert.doesNotMatch(required, /라벨출력/);
 });
 
 test('new Apps Script files participate in syntax verification', () => {
   const source = read('tests/syntax.test.js');
   assert.match(source, /apps-script\/CurrentStateCore\.js/);
   assert.match(source, /apps-script\/SchemaSetup\.gs/);
+  assert.match(source, /apps-script\/LabelPrintCore\.js/);
+  assert.match(source, /apps-script\/LabelPrint\.gs/);
 });
