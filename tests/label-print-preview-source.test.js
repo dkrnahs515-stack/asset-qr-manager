@@ -18,7 +18,7 @@ function functionBody(source, name) {
 }
 
 test('preview service exposes immutable snapshot lifecycle entry points', () => {
-  const source = read('apps-script/LabelPrintPreview.gs');
+  const source = read('apps-script/LabelPrintPreviewService.gs');
   for (const name of [
     'createSelectedLabelPrintPreview',
     'prepareLabelPrintPreview',
@@ -32,7 +32,7 @@ test('preview service exposes immutable snapshot lifecycle entry points', () => 
 });
 
 test('preview preparation re-reads authoritative sources and never calls QR mutation helpers', () => {
-  const source = read('apps-script/LabelPrintPreview.gs');
+  const source = read('apps-script/LabelPrintPreviewService.gs');
   const body = functionBody(source, 'prepareLabelPrintPreview');
   for (const marker of [
     'readLabelPrintMasterAssets_',
@@ -48,7 +48,7 @@ test('preview preparation re-reads authoritative sources and never calls QR muta
 });
 
 test('batch ID is allocated only after all requested items validate', () => {
-  const source = read('apps-script/LabelPrintPreview.gs');
+  const source = read('apps-script/LabelPrintPreviewService.gs');
   const body = functionBody(source, 'prepareLabelPrintPreview');
   const validationAt = body.indexOf('failures.length');
   const batchAt = body.indexOf('makeNextLabelPrintBatchId_');
@@ -60,7 +60,7 @@ test('batch ID is allocated only after all requested items validate', () => {
 });
 
 test('snapshot freezes printed facts and stores cache chunks by page for six hours', () => {
-  const source = read('apps-script/LabelPrintPreview.gs');
+  const source = read('apps-script/LabelPrintPreviewService.gs');
   const prepare = functionBody(source, 'prepareLabelPrintPreview');
   for (const field of [
     'batchId', 'environment', 'printSettings', 'inspectionDate', 'accessKey',
@@ -93,7 +93,7 @@ test('snapshot freezes printed facts and stores cache chunks by page for six hou
 });
 
 test('preview load accepts only opaque tokens and revalidates environment and active QR identity', () => {
-  const source = read('apps-script/LabelPrintPreview.gs');
+  const source = read('apps-script/LabelPrintPreviewService.gs');
   const load = functionBody(source, 'loadLabelPrintPreviewSnapshot_');
   const validate = functionBody(source, 'validateLabelPrintPreviewSnapshot_');
   assert.match(load, /\^\[A-Za-z0-9_-\]\{32,64\}\$/);
@@ -107,7 +107,7 @@ test('preview load accepts only opaque tokens and revalidates environment and ac
 });
 
 test('preview model derives 24-slot pages and calibrated positions from cached settings only', () => {
-  const source = read('apps-script/LabelPrintPreview.gs');
+  const source = read('apps-script/LabelPrintPreviewService.gs');
   const body = functionBody(source, 'getLabelPrintPreviewModel');
   assert.match(body, /loadLabelPrintPreviewSnapshot_/);
   assert.match(body, /validateLabelPrintPreviewSnapshot_/);
@@ -117,7 +117,7 @@ test('preview model derives 24-slot pages and calibrated positions from cached s
 });
 
 test('selected preview URL uses the existing web-app deployment and a token only', () => {
-  const source = read('apps-script/LabelPrintPreview.gs');
+  const source = read('apps-script/LabelPrintPreviewService.gs');
   const body = functionBody(source, 'createSelectedLabelPrintPreview');
   assert.match(body, /getSelectedLabelPrintSystemIds\(\)/);
   assert.match(body, /ScriptApp\.getService\(\)\.getUrl\(\)/);
