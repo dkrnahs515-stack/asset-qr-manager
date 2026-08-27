@@ -60,6 +60,22 @@ function buildLabelPrintSettingsSnapshot_(settings) {
   };
 }
 
+function resolveLabelPrintFloorOrderFromMap_(locationMap, floor) {
+  var targetFloor = String(floor || '').trim();
+  if (!targetFloor) return null;
+  var minOrder = null;
+  var byCode = locationMap && locationMap.byCode ? locationMap.byCode : {};
+  Object.keys(byCode).forEach(function (code) {
+    var entry = byCode[code] || {};
+    if (String(entry.floor || '').trim() !== targetFloor) return;
+    if (entry.sortOrder === null || entry.sortOrder === '') return;
+    var order = Number(entry.sortOrder);
+    if (!Number.isFinite(order)) return;
+    if (minOrder === null || order < minOrder) minOrder = order;
+  });
+  return minOrder;
+}
+
 function prepareLabelPrintPreview(request) {
   request = request || {};
   var systemIds = uniqueLabelPrintSystemIds_(request.systemIds || []);
@@ -115,11 +131,13 @@ function prepareLabelPrintPreview(request) {
     var locationSortOrder = resolveLabelPrintLocationOrder_(
       locationMap, currentLocationCode, currentFloor, currentSpaceName
     );
+    var floorSortOrder = resolveLabelPrintFloorOrderFromMap_(locationMap, currentFloor);
 
     items.push({
       systemId: systemId,
       accessKey: String(issue.accessKey || '').trim(),
       qrUrl: String(issue.lookupUrl || '').trim(),
+      issueStateFingerprint: buildLabelPrintIssueStateFingerprint(issue),
       newAssetNo: asset.newAssetNo,
       name: asset.name,
       currentFloor: currentFloor,
@@ -127,6 +145,7 @@ function prepareLabelPrintPreview(request) {
       currentResult: currentResult,
       inspectionDate: formatLabelInspectionDate_(state && state.latestJudgedAt || ''),
       printType: validation.printType,
+      floorSortOrder: floorSortOrder,
       locationSortOrder: locationSortOrder
     });
   });
@@ -243,11 +262,15 @@ function validateLabelPrintPreviewSnapshot_(snapshot) {
     }
     if (String(current.lookupUrl || '').trim() !== String(item.qrUrl || '').trim()) {
       failures.push(item.newAssetNo + ': QR URL 변경');
+      return;
+    }
+    if (!labelPrintIssueStateMatchesFingerprint(current, item.issueStateFingerprint)) {
+      failures.push(item.newAssetNo + ': 출력 이력 상태 변경');
     }
   });
 
   if (failures.length) {
-    throw new Error('미리보기 생성 후 QR 상태가 변경되었습니다 — ' + failures.join(' / '));
+    throw new Error('미리보기 생성 후 QR 또는 출력 상태가 변경되었습니다 — ' + failures.join(' / '));
   }
   return true;
 }
@@ -261,7 +284,9 @@ function getLabelPrintPreviewModel(token) {
     return page.map(function (item, slotIndex) {
       if (!item) return null;
       var view = {};
-      Object.keys(item).forEach(function (key) { view[key] = item[key]; });
+      Object.keys(item).forEach(function (key) {
+        if (key !== 'issueStateFingerprint') view[key] = item[key];
+      });
       view.slot = calculateLabelSlotPosition(snapshot.printSettings, slotIndex);
       return view;
     });
