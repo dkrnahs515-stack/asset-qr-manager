@@ -20,6 +20,18 @@ var LABEL_PRINT_HEADERS = [
   '출력가능여부', '영구 시스템 ID', 'QR조회URL', '위치정렬순서'
 ];
 
+var QR_BATCH_HEADERS = [
+  '배치ID', '환경', '대상지문', '상태', '배치크기', '전체대상', '신규발급대상',
+  '기존활성QR', '성공', '재사용', '실패', '미처리', '다음처리순번', '생성일시',
+  '최종실행일시', '완료일시', '생성자', '비고'
+];
+
+var QR_BATCH_ITEM_HEADERS = [
+  '배치ID', '처리순번', '영구 시스템 ID', 'New 비품번호', '품명', '스냅샷사용여부',
+  '스냅샷QR상태', '처리상태', '시도횟수', 'QR접근키', 'QR조회URL', '오류메시지',
+  '최종시도일시'
+];
+
 var SESSION_METADATA_HEADERS = ['조사구분', '조사차수', '조사표기명', '조사목적'];
 var ASSET_QR_EXPECTED_ASSET_COUNT = 842;
 
@@ -68,6 +80,8 @@ function installAssetQrSchema() {
 
     ensureSheetSchema_(ss, '비품현재상태', CURRENT_STATE_HEADERS, report);
     ensureSheetSchema_(ss, 'QR발급관리', QR_ISSUE_HEADERS, report);
+    ensureSheetSchema_(ss, 'QR대량발급배치', QR_BATCH_HEADERS, report);
+    ensureSheetSchema_(ss, 'QR대량발급항목', QR_BATCH_ITEM_HEADERS, report);
     var labelSheet = ensureSheetSchema_(ss, '라벨설정', ['설정항목', '설정값'], report);
     seedLabelSettings_(labelSheet, report);
     ensureLabelPrintWorkSheet_(ss, report);
@@ -166,6 +180,11 @@ function applySchemaValidations_(sheet, sheetName) {
     rules['QR발급상태'] = ['미발급', '발급완료', '재발급필요'];
     rules['라벨유형'] = ['FORMTEC_LS3106', 'A4_FREECUT_64X34'];
     rules['재출력필요여부'] = ['Y', 'N'];
+  } else if (sheetName === 'QR대량발급배치') {
+    rules['상태'] = ['생성중', '준비', '진행중', '일시중단', '완료', '취소'];
+  } else if (sheetName === 'QR대량발급항목') {
+    rules['스냅샷QR상태'] = ['신규발급', '재사용'];
+    rules['처리상태'] = ['대기', '성공', '재사용', '실패'];
   }
 
   Object.keys(rules).forEach(function (header) {

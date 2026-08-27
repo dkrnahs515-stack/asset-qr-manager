@@ -149,7 +149,17 @@ function readQrAdminMasterAssetById_(ss, systemId) {
   };
 }
 
-function updateMasterQrUrl_(systemId, lookupUrl, ss) {
+function updateMasterQrUrl_(systemId, lookupUrl, ss, context) {
+  if (context) {
+    var contextAsset = readQrIssuanceContextAsset_(context, systemId);
+    if (!contextAsset) throw new Error('비품마스터에서 비품을 찾을 수 없습니다: ' + systemId);
+    var normalizedLookupUrl = String(lookupUrl || '');
+    if (contextAsset.qrLookupUrl === normalizedLookupUrl) return;
+    contextAsset.qrLookupUrl = normalizedLookupUrl;
+    context.masterUrls[contextAsset.systemId] = contextAsset.qrLookupUrl;
+    context.masterDirty = true;
+    return;
+  }
   var spreadsheet = ss || getSpreadsheet_();
   var asset = readQrAdminMasterAssetById_(spreadsheet, systemId);
   if (!asset) throw new Error('비품마스터에서 비품을 찾을 수 없습니다: ' + systemId);
@@ -186,9 +196,124 @@ function generateUniqueQrAccessKey_(ss) {
   throw new Error('중복되지 않는 QR 접근키를 생성하지 못했습니다. 다시 시도하세요.');
 }
 
-function createNewQrIssueRow_(ss, asset, baseUrl, options) {
+function createQrIssuanceContext_(ss, suppliedAssets, suppliedIssues) {
+  var assets = suppliedAssets || readQrAdminMasterAssets_(ss);
+  var issues = suppliedIssues || readAllQrIssueRows_(ss);
+  var assetsBySystemId = {};
+  var accessKeys = {};
+  assets.forEach(function (asset) {
+    if (!assetsBySystemId[asset.systemId]) assetsBySystemId[asset.systemId] = [];
+    assetsBySystemId[asset.systemId].push(asset);
+  });
+  issues.forEach(function (issue) {
+    if (issue.accessKey) accessKeys[issue.accessKey] = true;
+  });
+  return {
+    assets: assets,
+    issues: issues,
+    assetsBySystemId: assetsBySystemId,
+    accessKeys: accessKeys,
+    masterUrls: {},
+    dirtyIssueRows: {},
+    newIssues: [],
+    qrDirty: false,
+    masterDirty: false
+  };
+}
+
+function readQrIssuanceContextAsset_(context, systemId) {
+  var matches = context.assetsBySystemId[String(systemId || '').trim()] || [];
+  if (matches.length > 1) {
+    throw new Error('비품마스터 영구 시스템 ID가 중복되었습니다: ' + systemId);
+  }
+  return matches[0] || null;
+}
+
+function generateUniqueQrAccessKeyFromContext_(context) {
+  for (var attempt = 0; attempt < 5; attempt += 1) {
+    var key = generateQrAccessKey_();
+    if (!isValidQrAccessKey(key) || context.accessKeys[key]) continue;
+    context.accessKeys[key] = true;
+    return key;
+  }
+  throw new Error('중복되지 않는 QR 접근키를 생성하지 못했습니다. 다시 시도하세요.');
+}
+
+function writeContiguousQrUrlChanges_(sheet, column, changes) {
+  var rows = (changes || []).slice().sort(function (left, right) {
+    return left.rowNumber - right.rowNumber;
+  });
+  var groups = [];
+  rows.forEach(function (change) {
+    var group = groups[groups.length - 1];
+    if (!group || change.rowNumber !== group[group.length - 1].rowNumber + 1) {
+      group = [];
+      groups.push(group);
+    }
+    group.push(change);
+  });
+  groups.forEach(function (group) {
+    sheet.getRange(group[0].rowNumber, column, group.length, 1).setValues(
+      group.map(function (change) { return [String(change.lookupUrl || '')]; })
+    );
+  });
+}
+
+function flushQrIssuanceContext_(ss, context) {
+  if (context.qrDirty) {
+    var issueSheet = getRequiredSheet_(ss, INVENTORY_CONFIG.SHEETS.QR_ISSUE);
+    var issueHeaders = getHeaders_(issueSheet);
+    var issueIndex = requireHeaders_(issueHeaders, QR_ISSUE_HEADERS, issueSheet.getName());
+    var dirtyIssueRows = Object.keys(context.dirtyIssueRows || {}).map(function (rowNumber) {
+      return context.dirtyIssueRows[rowNumber];
+    }).sort(function (left, right) { return left.rowNumber - right.rowNumber; });
+    writeContiguousQrUrlChanges_(
+      issueSheet,
+      issueIndex['QR조회URL'] + 1,
+      dirtyIssueRows.map(function (issue) {
+        return { rowNumber: issue.rowNumber, lookupUrl: issue.lookupUrl };
+      })
+    );
+
+    var newIssues = context.newIssues || [];
+    var startRow = issueSheet.getLastRow() + 1;
+    var requiredIssueLastRow = startRow + newIssues.length - 1;
+    if (newIssues.length && issueSheet.getMaxRows() < requiredIssueLastRow) {
+      issueSheet.insertRowsAfter(
+        issueSheet.getMaxRows(),
+        requiredIssueLastRow - issueSheet.getMaxRows()
+      );
+    }
+    if (newIssues.length) {
+      issueSheet.getRange(startRow, 1, newIssues.length, issueHeaders.length).setValues(
+        newIssues.map(function (issue) { return buildQrIssueSheetRow_(issueHeaders, issue); })
+      );
+      newIssues.forEach(function (issue, index) { issue.rowNumber = startRow + index; });
+    }
+    context.dirtyIssueRows = {};
+    context.newIssues = [];
+    context.qrDirty = false;
+  }
+
+  if (context.masterDirty) {
+    var masterSheet = getRequiredSheet_(ss, INVENTORY_CONFIG.SHEETS.ASSET_MASTER);
+    var masterHeaders = getHeaders_(masterSheet);
+    var masterIndex = requireHeaders_(masterHeaders, ['QR조회URL'], masterSheet.getName());
+    var masterChanges = Object.keys(context.masterUrls).map(function (systemId) {
+      var asset = readQrIssuanceContextAsset_(context, systemId);
+      return { rowNumber: asset.rowNumber, lookupUrl: context.masterUrls[systemId] };
+    });
+    writeContiguousQrUrlChanges_(masterSheet, masterIndex['QR조회URL'] + 1, masterChanges);
+    context.masterUrls = {};
+    context.masterDirty = false;
+  }
+}
+
+function createNewQrIssueRow_(ss, asset, baseUrl, options, context) {
   options = options || {};
-  var accessKey = generateUniqueQrAccessKey_(ss);
+  var accessKey = context
+    ? generateUniqueQrAccessKeyFromContext_(context)
+    : generateUniqueQrAccessKey_(ss);
   var lookupUrl = buildQrLookupUrl(baseUrl, accessKey);
   var issue = buildInitialQrIssueRecord(asset, accessKey, lookupUrl, new Date());
   if (options.issueStatus) issue.issueStatus = options.issueStatus;
@@ -196,14 +321,19 @@ function createNewQrIssueRow_(ss, asset, baseUrl, options) {
     issue.reprintRequired = 'Y';
     issue.reprintReason = String(options.reprintReason);
   }
-  return appendQrIssue_(ss, issue);
+  if (!context) return appendQrIssue_(ss, issue);
+  issue.rowNumber = 0;
+  context.issues.push(issue);
+  context.newIssues.push(issue);
+  context.qrDirty = true;
+  return issue;
 }
 
-function ensureActiveQrIssueForAsset_(ss, asset, baseUrl) {
-  var allRows = readAllQrIssueRows_(ss);
+function ensureActiveQrIssueForAsset_(ss, asset, baseUrl, context) {
+  var allRows = context ? context.issues : readAllQrIssueRows_(ss);
   var active = findActiveQrIssue(allRows, asset.systemId);
   if (!active) {
-    var created = createNewQrIssueRow_(ss, asset, baseUrl, {});
+    var created = createNewQrIssueRow_(ss, asset, baseUrl, {}, context);
     created.reused = false;
     return created;
   }
@@ -217,10 +347,42 @@ function ensureActiveQrIssueForAsset_(ss, asset, baseUrl) {
   }
   if (!active.lookupUrl) {
     active.lookupUrl = expectedUrl;
-    updateQrIssue_(ss, active);
+    if (context) {
+      context.dirtyIssueRows[active.rowNumber] = active;
+      context.qrDirty = true;
+    }
+    else updateQrIssue_(ss, active);
   }
   active.reused = true;
   return active;
+}
+
+function issueQrAccessKeysUnlocked_(ss, systemIds, baseUrl, suppliedContext) {
+  var normalizedSystemIds = qrAdminUniqueStrings_(systemIds || []);
+  var context = suppliedContext || createQrIssuanceContext_(ss);
+  var results = normalizedSystemIds.map(function (systemId) {
+    try {
+      var asset = readQrIssuanceContextAsset_(context, systemId);
+      if (!asset) return { systemId: systemId, ok: false, error: '비품마스터 누락' };
+      var issue = ensureActiveQrIssueForAsset_(ss, asset, baseUrl, context);
+      updateMasterQrUrl_(asset.systemId, issue.lookupUrl, ss, context);
+      return {
+        systemId: systemId,
+        ok: true,
+        accessKey: issue.accessKey,
+        lookupUrl: issue.lookupUrl,
+        reused: !!issue.reused
+      };
+    } catch (error) {
+      return { systemId: systemId, ok: false, error: String(error && error.message || error) };
+    }
+  });
+  flushQrIssuanceContext_(ss, context);
+  return {
+    requested: normalizedSystemIds.length,
+    succeeded: results.filter(function (result) { return result.ok; }).length,
+    results: results
+  };
 }
 
 function issueQrAccessKeys(request) {
@@ -233,28 +395,7 @@ function issueQrAccessKeys(request) {
   try {
     var baseUrl = readRequiredLabelSetting_('상세조회배포URL');
     var ss = getSpreadsheet_();
-    var results = systemIds.map(function (systemId) {
-      try {
-        var asset = readQrAdminMasterAssetById_(ss, systemId);
-        if (!asset) return { systemId: systemId, ok: false, error: '비품마스터 누락' };
-        var issue = ensureActiveQrIssueForAsset_(ss, asset, baseUrl);
-        updateMasterQrUrl_(asset.systemId, issue.lookupUrl, ss);
-        return {
-          systemId: systemId,
-          ok: true,
-          accessKey: issue.accessKey,
-          lookupUrl: issue.lookupUrl,
-          reused: !!issue.reused
-        };
-      } catch (error) {
-        return { systemId: systemId, ok: false, error: String(error && error.message || error) };
-      }
-    });
-    return {
-      requested: systemIds.length,
-      succeeded: results.filter(function (result) { return result.ok; }).length,
-      results: results
-    };
+    return issueQrAccessKeysUnlocked_(ss, systemIds, baseUrl);
   } finally {
     lock.releaseLock();
   }
