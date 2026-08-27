@@ -104,6 +104,30 @@ function labelPrintIssueValue_(issue, camelName, headerName) {
   return issue[headerName];
 }
 
+function buildLabelPrintIssueStateFingerprint(issue) {
+  var source = issue || {};
+  var rawCount = labelPrintIssueValue_(source, 'reprintCount', '재출력횟수');
+  var count = Number(rawCount || 0);
+  if (!Number.isFinite(count)) count = 0;
+  return {
+    issueStatus: labelPrintText_(labelPrintIssueValue_(source, 'issueStatus', 'QR발급상태')),
+    reprintRequired: labelPrintText_(labelPrintIssueValue_(source, 'reprintRequired', '재출력필요여부')),
+    reprintCount: count,
+    lastPrintBatchId: labelPrintText_(labelPrintIssueValue_(source, 'lastPrintBatchId', '최종출력배치ID'))
+  };
+}
+
+function labelPrintIssueStateMatchesFingerprint(issue, fingerprint) {
+  var current = buildLabelPrintIssueStateFingerprint(issue);
+  var expected = fingerprint || {};
+  var expectedCount = Number(expected.reprintCount || 0);
+  if (!Number.isFinite(expectedCount)) expectedCount = 0;
+  return current.issueStatus === labelPrintText_(expected.issueStatus) &&
+    current.reprintRequired === labelPrintText_(expected.reprintRequired) &&
+    current.reprintCount === expectedCount &&
+    current.lastPrintBatchId === labelPrintText_(expected.lastPrintBatchId);
+}
+
 function labelPrintExpectedQrUrl_(settings, accessKey) {
   return settings.detailDeploymentUrl + '?k=' + accessKey;
 }
@@ -146,18 +170,39 @@ function validateLabelPrintCandidate(asset, currentState, issueRows, settings) {
   };
 }
 
+function labelPrintMappedSortValue_(item, fieldName) {
+  if (!item || item[fieldName] === null || item[fieldName] === '') return { mapped: false, value: 0 };
+  var value = Number(item[fieldName]);
+  return Number.isFinite(value) ? { mapped: true, value: value } : { mapped: false, value: 0 };
+}
+
 function sortLabelPrintItems(items) {
   return (items || []).slice().sort(function (a, b) {
-    var aOrder = Number(a && a.locationSortOrder);
-    var bOrder = Number(b && b.locationSortOrder);
-    var aMapped = Number.isFinite(aOrder) && a && a.locationSortOrder !== null && a.locationSortOrder !== '';
-    var bMapped = Number.isFinite(bOrder) && b && b.locationSortOrder !== null && b.locationSortOrder !== '';
-    if (aMapped !== bMapped) return aMapped ? -1 : 1;
-    if (aMapped && aOrder !== bOrder) return aOrder - bOrder;
+    var aFloor = labelPrintMappedSortValue_(a, 'floorSortOrder');
+    var bFloor = labelPrintMappedSortValue_(b, 'floorSortOrder');
+    if (aFloor.mapped || bFloor.mapped) {
+      if (aFloor.mapped !== bFloor.mapped) return aFloor.mapped ? -1 : 1;
+      if (aFloor.value !== bFloor.value) return aFloor.value - bFloor.value;
+      var mappedFloorCompare = labelPrintText_(a && a.currentFloor).localeCompare(
+        labelPrintText_(b && b.currentFloor), 'ko', { numeric: true }
+      );
+      if (mappedFloorCompare) return mappedFloorCompare;
+    }
 
-    var floorCompare = labelPrintText_(a && a.currentFloor).localeCompare(labelPrintText_(b && b.currentFloor), 'ko', { numeric: true });
-    if (floorCompare) return floorCompare;
-    var spaceCompare = labelPrintText_(a && a.currentSpaceName).localeCompare(labelPrintText_(b && b.currentSpaceName), 'ko', { numeric: true });
+    var aLocation = labelPrintMappedSortValue_(a, 'locationSortOrder');
+    var bLocation = labelPrintMappedSortValue_(b, 'locationSortOrder');
+    if (aLocation.mapped !== bLocation.mapped) return aLocation.mapped ? -1 : 1;
+    if (aLocation.mapped && aLocation.value !== bLocation.value) return aLocation.value - bLocation.value;
+
+    if (!aFloor.mapped && !bFloor.mapped) {
+      var fallbackFloorCompare = labelPrintText_(a && a.currentFloor).localeCompare(
+        labelPrintText_(b && b.currentFloor), 'ko', { numeric: true }
+      );
+      if (fallbackFloorCompare) return fallbackFloorCompare;
+    }
+    var spaceCompare = labelPrintText_(a && a.currentSpaceName).localeCompare(
+      labelPrintText_(b && b.currentSpaceName), 'ko', { numeric: true }
+    );
     if (spaceCompare) return spaceCompare;
     return labelPrintText_(a && a.newAssetNo).localeCompare(labelPrintText_(b && b.newAssetNo), 'ko', { numeric: true });
   });
@@ -214,6 +259,8 @@ if (typeof module !== 'undefined' && module.exports) {
     normalizeLabelPrintSettings: normalizeLabelPrintSettings,
     classifyLabelPrintType: classifyLabelPrintType,
     validateLabelPrintCandidate: validateLabelPrintCandidate,
+    buildLabelPrintIssueStateFingerprint: buildLabelPrintIssueStateFingerprint,
+    labelPrintIssueStateMatchesFingerprint: labelPrintIssueStateMatchesFingerprint,
     sortLabelPrintItems: sortLabelPrintItems,
     paginateLabelPrintItems: paginateLabelPrintItems,
     calculateLabelSlotPosition: calculateLabelSlotPosition,
