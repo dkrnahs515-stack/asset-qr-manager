@@ -22,6 +22,7 @@ test('Apps Script server files parse as JavaScript', () => {
     'apps-script/CurrentStateCore.js',
     'apps-script/RuntimeConfigCore.js',
     'apps-script/QrCore.js',
+    'apps-script/QrBatchCore.js',
     'apps-script/LabelPrintCore.js',
     'apps-script/RuntimeConfig.gs',
     'apps-script/Code.gs',
@@ -30,6 +31,7 @@ test('Apps Script server files parse as JavaScript', () => {
     'apps-script/SchemaSetup.gs',
     'apps-script/CurrentState.gs',
     'apps-script/QrAdmin.gs',
+    'apps-script/QrBatch.gs',
     'apps-script/LabelPrint.gs',
     'apps-script/LabelPrintPreviewService.gs',
     'apps-script/LabelPrintCompletion.gs'

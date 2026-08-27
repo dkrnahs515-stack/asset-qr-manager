@@ -45,6 +45,45 @@ test('QR issuance requires the stable detail deployment URL from label settings'
   assert.match(source, /재발급 사유/);
 });
 
+test('single and bulk issuance share one unlocked idempotent issuance path', () => {
+  const source = readSource();
+  assert.match(source, /function issueQrAccessKeysUnlocked_\(ss, systemIds, baseUrl, suppliedContext\)/);
+
+  const helper = source
+    .split('function issueQrAccessKeysUnlocked_')[1]
+    .split('\nfunction issueQrAccessKeys(')[0];
+  assert.match(helper, /ensureActiveQrIssueForAsset_/);
+  assert.match(helper, /updateMasterQrUrl_/);
+  assert.match(helper, /reused:\s*!!issue\.reused/);
+
+  const publicEntry = source
+    .split('function issueQrAccessKeys(request)')[1]
+    .split('\nfunction stopAndReissueQrAccessKey')[0];
+  assert.match(publicEntry, /LockService\.getScriptLock\(\)/);
+  assert.match(publicEntry, /issueQrAccessKeysUnlocked_\(ss, systemIds, baseUrl\)/);
+});
+
+test('multi-item issuance reads source sheets once and flushes accumulated mutations in bulk', () => {
+  const source = readSource();
+  const helper = source
+    .split('function issueQrAccessKeysUnlocked_')[1]
+    .split('\nfunction issueQrAccessKeys(')[0];
+
+  assert.match(helper, /createQrIssuanceContext_\(ss\)/);
+  assert.match(helper, /ensureActiveQrIssueForAsset_\(ss, asset, baseUrl, context\)/);
+  assert.match(helper, /updateMasterQrUrl_\(asset\.systemId, issue\.lookupUrl, ss, context\)/);
+  assert.match(helper, /flushQrIssuanceContext_\(ss, context\)/);
+  assert.doesNotMatch(helper, /readQrAdminMasterAssetById_/);
+
+  const contextBuilder = source
+    .split('function createQrIssuanceContext_')[1]
+    .split('\nfunction ')[0];
+  assert.match(contextBuilder, /readQrAdminMasterAssets_/);
+  assert.match(contextBuilder, /readAllQrIssueRows_/);
+  assert.match(source, /dirtyIssueRows/);
+  assert.match(source, /newIssues/);
+});
+
 test('five-asset pilot helper issues only the approved pilot system IDs', () => {
   const pilotPath = 'apps-script/PilotQr.gs';
   assert.ok(fs.existsSync(pilotPath), 'apps-script/PilotQr.gs must exist');

@@ -28,6 +28,18 @@ const labelPrintHeaders = [
   '출력가능여부', '영구 시스템 ID', 'QR조회URL', '위치정렬순서'
 ];
 
+const qrBatchHeaders = [
+  '배치ID', '환경', '대상지문', '상태', '배치크기', '전체대상', '신규발급대상',
+  '기존활성QR', '성공', '재사용', '실패', '미처리', '다음처리순번', '생성일시',
+  '최종실행일시', '완료일시', '생성자', '비고'
+];
+
+const qrBatchItemHeaders = [
+  '배치ID', '처리순번', '영구 시스템 ID', 'New 비품번호', '품명', '스냅샷사용여부',
+  '스냅샷QR상태', '처리상태', '시도횟수', 'QR접근키', 'QR조회URL', '오류메시지',
+  '최종시도일시'
+];
+
 test('schema installer declares all three QR subsystem sheets and exact headers', () => {
   const source = read('apps-script/SchemaSetup.gs');
   assert.match(source, /function installAssetQrSchema\(\)/);
@@ -111,6 +123,27 @@ test('derived label-print sheet is not a runtime-required source sheet', () => {
   const runtime = read('apps-script/RuntimeConfig.gs');
   const required = runtime.split('var ASSET_RUNTIME_REQUIRED_SHEETS = [')[1].split('];')[0];
   assert.doesNotMatch(required, /라벨출력/);
+});
+
+test('schema installer creates durable QR batch and item checkpoint sheets with exact headers', () => {
+  const source = read('apps-script/SchemaSetup.gs');
+
+  assert.match(source, /var QR_BATCH_HEADERS = \[/);
+  assert.match(source, /var QR_BATCH_ITEM_HEADERS = \[/);
+  for (const header of qrBatchHeaders) {
+    assert.ok(source.includes(`'${header}'`), `missing QR batch header: ${header}`);
+  }
+  for (const header of qrBatchItemHeaders) {
+    assert.ok(source.includes(`'${header}'`), `missing QR batch item header: ${header}`);
+  }
+  assert.match(source, /ensureSheetSchema_\(ss,\s*'QR대량발급배치',\s*QR_BATCH_HEADERS/);
+  assert.match(source, /ensureSheetSchema_\(ss,\s*'QR대량발급항목',\s*QR_BATCH_ITEM_HEADERS/);
+});
+
+test('batch schema validates only approved batch and item states', () => {
+  const source = read('apps-script/SchemaSetup.gs');
+  assert.match(source, /rules\['상태'\]\s*=\s*\['생성중',\s*'준비',\s*'진행중',\s*'일시중단',\s*'완료',\s*'취소'\]/);
+  assert.match(source, /rules\['처리상태'\]\s*=\s*\['대기',\s*'성공',\s*'재사용',\s*'실패'\]/);
 });
 
 test('new Apps Script files participate in syntax verification', () => {
