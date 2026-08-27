@@ -37,6 +37,10 @@ function completeLabelPrintBatch(request) {
         if (String(issue.lookupUrl || '').trim() !== String(item.qrUrl || '').trim()) {
           throw new Error('미리보기 이후 QR URL이 변경되었습니다.');
         }
+        var sameBatch = String(issue.lastPrintBatchId || '').trim() === String(snapshot.batchId || '').trim();
+        if (!sameBatch && !labelPrintIssueStateMatchesFingerprint(issue, item.issueStateFingerprint)) {
+          throw new Error('미리보기 이후 출력 이력이 변경되었습니다. 새 미리보기를 생성하세요.');
+        }
 
         var patch = buildLabelPrintCompletionPatch(issue, {
           batchId: snapshot.batchId,
