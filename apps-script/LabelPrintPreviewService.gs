@@ -264,7 +264,8 @@ function validateLabelPrintPreviewSnapshot_(snapshot) {
       failures.push(item.newAssetNo + ': QR URL 변경');
       return;
     }
-    if (!labelPrintIssueStateMatchesFingerprint(current, item.issueStateFingerprint)) {
+    var sameBatch = String(current.lastPrintBatchId || '').trim() === String(snapshot.batchId || '').trim();
+    if (!sameBatch && !labelPrintIssueStateMatchesFingerprint(current, item.issueStateFingerprint)) {
       failures.push(item.newAssetNo + ': 출력 이력 상태 변경');
     }
   });
