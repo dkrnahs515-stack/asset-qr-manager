@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 
 const {
   sortLabelPrintItems,
@@ -46,4 +47,22 @@ test('issue state fingerprints reject a stale overlapping print preview', () => 
     ...original,
     reprintCount: 1
   }, fingerprint), false);
+});
+
+test('preview snapshot stores the print-state fingerprint and floor-group sort key', () => {
+  const source = fs.readFileSync('apps-script/LabelPrintPreviewService.gs', 'utf8');
+  assert.match(source, /issueStateFingerprint:\s*buildLabelPrintIssueStateFingerprint\(issue\)/);
+  assert.match(source, /floorSortOrder:\s*floorSortOrder/);
+  assert.match(source, /resolveLabelPrintFloorOrderFromMap_/);
+  assert.match(source, /labelPrintIssueStateMatchesFingerprint\(current, item\.issueStateFingerprint\)/);
+  assert.match(source, /sameBatch/);
+});
+
+test('completion preserves same-batch idempotency but rejects another stale batch', () => {
+  const source = fs.readFileSync('apps-script/LabelPrintCompletion.gs', 'utf8');
+  assert.match(source, /sameBatch/);
+  assert.match(source, /issue\.lastPrintBatchId/);
+  assert.match(source, /snapshot\.batchId/);
+  assert.match(source, /!sameBatch\s*&&\s*!labelPrintIssueStateMatchesFingerprint\(issue, item\.issueStateFingerprint\)/);
+  assert.match(source, /새 미리보기를 생성하세요/);
 });
