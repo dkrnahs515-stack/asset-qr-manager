@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const vm = require('node:vm');
 
 const sourcePath = 'apps-script/QrBatch.gs';
 
@@ -8,6 +9,39 @@ function readSource() {
   assert.ok(fs.existsSync(sourcePath), 'apps-script/QrBatch.gs must exist');
   return fs.readFileSync(sourcePath, 'utf8');
 }
+
+function loadQrBatchSource(context = {}) {
+  vm.runInNewContext(readSource(), context);
+  return context;
+}
+
+test('batch creator records 미기재 when Apps Script cannot read the active user email', () => {
+  const context = loadQrBatchSource({
+    Session: {
+      getActiveUser() {
+        return {
+          getEmail() {
+            throw new Error('userinfo.email permission is unavailable');
+          }
+        };
+      }
+    }
+  });
+
+  assert.equal(context.qrBatchCreator_({}), '미기재');
+});
+
+test('batch creator preserves an explicitly selected operator name without reading email', () => {
+  const context = loadQrBatchSource({
+    Session: {
+      getActiveUser() {
+        throw new Error('email lookup must not run for an explicit operator');
+      }
+    }
+  });
+
+  assert.equal(context.qrBatchCreator_({ actor: '운영자' }), '운영자');
+});
 
 test('bulk QR adapter exposes dry-run, create, process, retry, and status entry points', () => {
   const source = readSource();
