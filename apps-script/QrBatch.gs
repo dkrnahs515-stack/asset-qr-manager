@@ -315,8 +315,12 @@ function ensureCreatingQrBatchItems_(ss, batch, snapshotItems) {
 function qrBatchCreator_(request) {
   var requested = String(request && request.actor || '').trim();
   if (requested) return requested;
-  var email = String(Session.getActiveUser().getEmail() || '').trim();
-  return email || '미기재';
+  try {
+    var email = String(Session.getActiveUser().getEmail() || '').trim();
+    return email || '미기재';
+  } catch (error) {
+    return '미기재';
+  }
 }
 
 function previewBulkQrIssuance() {
