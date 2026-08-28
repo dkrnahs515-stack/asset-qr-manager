@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <?!= includeDetail_('Styles'); ?>
+</head>
+<body>
+  <main class="shell" id="app" aria-live="polite">
+    <div id="runtime-banner" class="runtime" hidden>
+      <strong id="runtime-label"></strong>
+      <span id="runtime-source"></span>
+    </div>
+
+    <section id="loading" class="state-card">
+      <div class="loading-dot" aria-hidden="true"></div>
+      <h1>비품정보를 불러오는 중입니다</h1>
+      <p>잠시만 기다려 주세요.</p>
+    </section>
+
+    <section id="error" class="state-card" hidden>
+      <h1 id="error-title"></h1>
+      <p id="error-message"></p>
+    </section>
+
+    <section id="detail" hidden>
+      <header class="hero">
+        <p>강서청소년회관 비품정보</p>
+        <h1 id="asset-number"></h1>
+        <h2 id="asset-name"></h2>
+      </header>
+
+      <section class="card" id="basic-card">
+        <h3>기본 정보</h3>
+        <dl class="info-list">
+          <dt>비품번호</dt><dd id="basic-number"></dd>
+          <dt>품명</dt><dd id="basic-name"></dd>
+          <dt>규격</dt><dd id="basic-spec"></dd>
+          <dt>수량</dt><dd id="basic-quantity"></dd>
+          <dt>단가</dt><dd id="basic-unit-price"></dd>
+          <dt>취득금액</dt><dd id="basic-acquisition"></dd>
+          <dt>구입연도</dt><dd id="basic-purchase-year"></dd>
+          <dt>내용연수</dt><dd id="basic-useful-life"></dd>
+        </dl>
+      </section>
+
+      <section class="card" id="location-card">
+        <h3>위치 정보</h3>
+        <div class="location-grid">
+          <div class="location-box current">
+            <span class="location-label">마지막 확인 위치</span>
+            <div class="location-value" id="current-location"></div>
+          </div>
+          <div class="location-box registered" id="registered-location-box">
+            <span class="location-label">대장 등록 위치</span>
+            <div class="location-value" id="registered-location"></div>
+          </div>
+        </div>
+        <div class="meta-row">
+          <span class="badge" id="location-source"></span>
+          <span class="badge warn" id="master-applied"></span>
+        </div>
+        <div class="warning" id="sync-warning" hidden></div>
+        <div class="latest-grid" style="margin-top:12px">
+          <div class="latest-item"><span>마지막 위치 변경일</span><strong id="location-changed-at"></strong></div>
+          <div class="latest-item"><span>마지막 실물 확인일</span><strong id="physical-confirmed-at"></strong></div>
+        </div>
+      </section>
+
+      <section class="card" id="latest-card">
+        <h3>최근 조사</h3>
+        <div class="latest-grid">
+          <div class="latest-item"><span>조사결과</span><strong id="latest-result"></strong></div>
+          <div class="latest-item"><span>조사명</span><strong id="latest-session"></strong></div>
+          <div class="latest-item"><span>판정일시</span><strong id="latest-judged-at"></strong></div>
+          <div class="latest-item"><span>확인자</span><strong id="latest-judged-by"></strong></div>
+        </div>
+      </section>
+
+      <section class="card" id="history-card">
+        <h3>조사이력</h3>
+        <div id="history-list" class="history-list"></div>
+        <button id="load-more" class="more" type="button" hidden>이력 더 보기</button>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    window.INITIAL_QR_KEY = <?!= initialKeyJson ?>;
+    window.INITIAL_DETAIL_ERROR = <?!= initialErrorJson ?>;
+    window.DETAIL_RUNTIME = <?!= runtimeJson ?>;
+  </script>
+  <?!= includeDetail_('Client'); ?>
+</body>
+</html>

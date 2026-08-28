@@ -116,7 +116,10 @@ function applyInspectionActionFromMobile(payload) {
     });
 
     applySessionMetricDelta_(payload.sessionId, previousResult, nextRecord.result);
-    return buildInspectionResponse_(nextRecord, payload.sessionId, changeId, false);
+    var currentStateSync = nextRecord.targetType === '등록비품' && nextRecord.systemId
+      ? safeRebuildCurrentStateForAsset_(nextRecord.systemId)
+      : null;
+    return buildInspectionResponse_(nextRecord, payload.sessionId, changeId, false, currentStateSync);
   } finally {
     lock.releaseLock();
   }
@@ -201,7 +204,10 @@ function reviseInspectionActionFromMobile(payload) {
     var changeId = appendChangeLog_(logSheet, changeEntry);
 
     applySessionMetricDelta_(payload.sessionId, previousResult, nextRecord.result);
-    return buildInspectionResponse_(nextRecord, payload.sessionId, changeId, false);
+    var currentStateSync = nextRecord.targetType === '등록비품' && nextRecord.systemId
+      ? safeRebuildCurrentStateForAsset_(nextRecord.systemId)
+      : null;
+    return buildInspectionResponse_(nextRecord, payload.sessionId, changeId, false, currentStateSync);
   } finally {
     lock.releaseLock();
   }
@@ -284,7 +290,10 @@ function undoInspectionAction(payload) {
     if (undoRow) setChangeLogFields_(logSheet, undoRow.rowNumber, { '이전변경ID': targetChange.changeId });
 
     applySessionMetricDelta_(payload.sessionId, previousResult, restored.result);
-    return buildInspectionResponse_(restored, payload.sessionId, undoChangeId, false);
+    var currentStateSync = restored.targetType === '등록비품' && restored.systemId
+      ? safeRebuildCurrentStateForAsset_(restored.systemId)
+      : null;
+    return buildInspectionResponse_(restored, payload.sessionId, undoChangeId, false, currentStateSync);
   } finally {
     lock.releaseLock();
   }
@@ -320,12 +329,13 @@ function inspectionReason_(type, issueType, memo) {
   return detail || type;
 }
 
-function buildInspectionResponse_(record, sessionId, changeId, duplicate) {
+function buildInspectionResponse_(record, sessionId, changeId, duplicate, currentStateSync) {
   return {
     duplicate: !!duplicate,
     changeId: changeId || '',
     record: serializeRecord_(record),
-    summary: getSessionSummary_(sessionId)
+    summary: getSessionSummary_(sessionId),
+    currentStateSync: currentStateSync || null
   };
 }
 
