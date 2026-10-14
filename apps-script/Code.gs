@@ -1,20 +1,51 @@
 var INVENTORY_CONFIG = {
-  SPREADSHEET_ID: '1R5WjwpXtsJwQfIvNnQ_D5PLD6TTLXqTlQ7CSjbUa274',
   SHEETS: {
     ASSET_MASTER: '비품마스터',
     LOCATION_MASTER: '위치마스터',
     ERROR_REVIEW: '오류검토',
     SESSION: '전수조사세션',
     RECORD: '전수조사기록',
-    CHANGE_LOG: '변경이력'
+    CHANGE_LOG: '변경이력',
+    CURRENT_STATE: '비품현재상태',
+    QR_ISSUE: 'QR발급관리',
+    LABEL_SETTINGS: '라벨설정',
+    LABEL_PRINT: '라벨출력'
   }
 };
 
-function doGet() {
+function doGet(e) {
+  var parameters = e && e.parameter ? e.parameter : {};
+  var view = String(parameters.view || '').trim();
+
+  if (view === 'label-panel') {
+    return HtmlService.createTemplateFromFile('LabelPrintPanel')
+      .evaluate()
+      .setTitle('QR 라벨 작업 패널')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
+  }
+
+  if (view === 'label-print') {
+    var previewToken = String(parameters.token || '').trim();
+    if (!/^[A-Za-z0-9_-]{32,64}$/.test(previewToken)) {
+      return HtmlService.createHtmlOutput('유효하지 않은 라벨 미리보기 주소입니다.')
+        .setTitle('QR 비품 라벨 미리보기');
+    }
+    var template = HtmlService.createTemplateFromFile('LabelPrintPreview');
+    template.previewToken = previewToken;
+    return template
+      .evaluate()
+      .setTitle('QR 비품 라벨 미리보기')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
+  }
+
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
     .setTitle('강서청소년회관 비품 전수조사')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
+}
+
+function includeHtml_(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
 function getBootstrapData() {
@@ -24,13 +55,14 @@ function getBootstrapData() {
       activeSession: null,
       summary: null,
       floors: [],
-      reviewLocations: 0
+      reviewLocations: 0,
+      runtime: getRuntimeEnvironmentStatus()
     };
   }
   return buildBootstrapForSession_(active.sessionId);
 }
 
-function startInventorySession(inspector) {
+function startInventorySession(request) {
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
 
@@ -53,21 +85,34 @@ function startInventorySession(inspector) {
 
     var existingSessionIds = readColumnValuesByHeader_(sessionSheet, '세션ID');
     var year = new Date().getFullYear();
+    var sessionRequest = normalizeSessionStartRequest(request, year);
     var sessionId = makeSessionId(year, existingSessionIds);
     var now = new Date();
 
+    var errorMap = readErrorMap_(getRequiredSheet_(ss, INVENTORY_CONFIG.SHEETS.ERROR_REVIEW));
+    var currentStateMap = ss.getSheetByName(INVENTORY_CONFIG.SHEETS.CURRENT_STATE)
+      ? readCurrentStateMap_(ss)
+      : {};
+    var baselineAssets = assets.map(function (asset) {
+      return selectInspectionBaseline(asset, currentStateMap[asset.systemId]);
+    });
+
     var sessionRow = buildRowForHeaders_(getHeaders_(sessionSheet), {
       '세션ID': sessionId,
-      '조사명': year + '년 정기 전수조사',
+      '조사명': sessionRequest.displayName,
       '기준연도': year,
-      '조사유형': '정기',
+      '조사유형': sessionRequest.category,
+      '조사구분': sessionRequest.category,
+      '조사차수': sessionRequest.round,
+      '조사표기명': sessionRequest.displayName,
+      '조사목적': sessionRequest.purpose,
       '조사범위': '전체',
       '기준시점': now,
       '기준비품수': assets.length,
       '시작일시': now,
       '종료일시': '',
       '세션상태': '준비',
-      '생성자': normalizeInspector_(inspector),
+      '생성자': normalizeInspector_(sessionRequest.inspector),
       '완료건수': 0,
       '정상건수': 0,
       '위치변경건수': 0,
@@ -82,8 +127,7 @@ function startInventorySession(inspector) {
     });
     sessionSheet.getRange(sessionSheet.getLastRow() + 1, 1, 1, sessionRow.length).setValues([sessionRow]);
 
-    var errorMap = readErrorMap_(getRequiredSheet_(ss, INVENTORY_CONFIG.SHEETS.ERROR_REVIEW));
-    var records = buildInventoryRecords(sessionId, assets, errorMap);
+    var records = buildInventoryRecords(sessionId, baselineAssets, errorMap);
     var recordHeaders = getHeaders_(recordSheet);
     var rows = records.map(function (record) {
       return buildRecordRow_(recordHeaders, record);
@@ -220,19 +264,19 @@ function markAssetNormal(payload) {
     });
 
     applySessionMetricDelta_(payload.sessionId, previousResult, '정상');
+    var currentStateSync = record.targetType === '등록비품' && record.systemId
+      ? safeRebuildCurrentStateForAsset_(record.systemId)
+      : null;
 
     return {
       duplicate: false,
       record: serializeRecord_(record),
-      summary: getSessionSummary_(payload.sessionId)
+      summary: getSessionSummary_(payload.sessionId),
+      currentStateSync: currentStateSync
     };
   } finally {
     lock.releaseLock();
   }
-}
-
-function getSpreadsheet_() {
-  return SpreadsheetApp.openById(INVENTORY_CONFIG.SPREADSHEET_ID);
 }
 
 function getRequiredSheet_(ss, name) {
@@ -485,7 +529,8 @@ function buildBootstrapForSession_(sessionId) {
       progress: data.progress.progress
     },
     floors: floors,
-    reviewLocations: reviewLocations
+    reviewLocations: reviewLocations,
+    runtime: getRuntimeEnvironmentStatus()
   };
 }
 

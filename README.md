@@ -52,14 +52,109 @@ asset-qr-manager/
 │  ├─ Index.html
 │  ├─ appsscript.json
 │  └─ README.md
+├─ apps-script-detail/
+│  ├─ Code.gs
+│  ├─ DetailCore.js
+│  ├─ DetailRepository.gs
+│  ├─ Index.html
+│  ├─ Styles.html
+│  ├─ Client.html
+│  ├─ appsscript.json
+│  └─ README.md
 ├─ tests/
-│  └─ core.test.js
 ├─ docs/superpowers/
 │  ├─ specs/
 │  └─ plans/
 ├─ package.json
 └─ .github/workflows/ci.yml
 ```
+
+## 비품현재상태 기반 설치·복구
+
+QR 상세조회·A4 라벨 시스템의 1단계는 기존 전수조사 원본을 유지하면서 비품별 최신 상태를 `비품현재상태`에 파생 저장합니다. `비품마스터`, `전수조사기록`, `변경이력`이 원본이며 `비품현재상태`는 언제든 다시 계산할 수 있습니다.
+
+### Apps Script 파일 매핑
+
+```text
+apps-script/Core.js                 → Core.gs
+apps-script/CurrentStateCore.js     → CurrentStateCore.gs
+apps-script/Code.gs                 → Code.gs
+apps-script/Inspection.gs           → Inspection.gs
+apps-script/FieldOps.gs             → FieldOps.gs
+apps-script/CurrentState.gs         → CurrentState.gs
+apps-script/SchemaSetup.gs          → SchemaSetup.gs
+apps-script/Index.html              → Index.html
+apps-script/appsscript.json         → appsscript.json
+```
+
+### 최초 설치 순서
+
+운영 시트에 적용하기 전에 백업 또는 테스트 사본에서 먼저 실행합니다.
+
+1. 위 Apps Script 파일을 모두 교체하거나 추가하고 저장합니다.
+2. `installAssetQrSchema()`를 실행합니다.
+3. 반환값에서 `assetCount=842`, `expectedAssetCount=842`, `assetCountMatches=true`를 확인합니다.
+4. `rebuildAllCurrentStates()`를 실행합니다.
+5. `auditCurrentState()`를 실행합니다.
+6. `registeredCount=842`, `stateCount=842`, `duplicateIds=[]`, `missingIds=[]`, `extraIds=[]`, `syncErrorIds=[]`, `ok=true`를 확인합니다.
+7. 테스트 배포에서 정상확인·위치변경·상태이상·미발견·판정수정·Undo를 검증합니다.
+8. 검증을 통과한 뒤 기존 웹 앱을 새 버전으로 배포하여 기존 `/exec` URL을 유지합니다.
+
+### 복구 작업
+
+특정 비품만 다시 계산할 때는 영구 시스템 ID를 전달합니다.
+
+```javascript
+repairCurrentState('GSYC-000340');
+```
+
+전체를 다시 계산해야 할 때는 `rebuildAllCurrentStates()`를 사용하고, 완료 후 반드시 `auditCurrentState()` 결과를 확인합니다. 사진추가만으로 최근 판정일·마지막 실물확인일·마지막 위치변경일은 변경되지 않습니다.
+
+## QR 비품 상세조회 5개 파일럿
+
+QR 상세조회는 기존 전수조사 앱과 분리된 **읽기 전용 Apps Script 웹앱**입니다. 외부 URL에는 순차적인 `GSYC-000001` 대신 32자리 영구 접근키만 노출합니다.
+
+```text
+비품 본체 QR
+→ https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec?k=<32자리 접근키>
+→ Google 로그인
+→ 비품마스터 기본정보 + 비품현재상태 + 조사이력 조회
+```
+
+기존 전수조사 프로젝트에는 다음 두 파일을 추가합니다.
+
+```text
+apps-script/QrCore.js  → QrCore.gs
+apps-script/QrAdmin.gs → QrAdmin.gs
+```
+
+별도 상세조회 프로젝트의 파일 매핑은 다음과 같습니다.
+
+```text
+apps-script-detail/Code.gs             → Code.gs
+apps-script-detail/DetailCore.js       → DetailCore.gs
+apps-script-detail/DetailRepository.gs → DetailRepository.gs
+apps-script-detail/Index.html          → Index.html
+apps-script-detail/Styles.html         → Styles.html
+apps-script-detail/Client.html         → Client.html
+apps-script-detail/appsscript.json     → appsscript.json
+```
+
+상세조회 프로젝트는 `spreadsheets.readonly` 권한만 사용하며 Drive 접근이나 시트 쓰기 기능을 포함하지 않습니다. TEST 프로젝트와 운영 프로젝트는 Script Properties의 프로젝트 역할로 서로 분리합니다.
+
+파일럿 대상은 다음 다섯 비품입니다.
+
+| 유형 | 영구 시스템 ID | 비품번호 | 품명 |
+|---|---|---|---|
+| 정상 | `GSYC-000340` | `2019-F2-10` | 문서 세단기 |
+| 위치변경 | `GSYC-000820` | `2022-O-54` | 하비체어 |
+| 상태이상 | `GSYC-000817` | `2022-O-51` | 하비체어 |
+| 미발견 | `GSYC-000815` | `2018-O-130` | 야외용 원목테이블 |
+| 기본정보 일부 공란 | `GSYC-000003` | `2018-B-113` | 사각테이블 |
+
+정식 상세조회 `/exec` URL을 TEST `라벨설정.상세조회배포URL`에 입력한 뒤 이 다섯 건만 `issueQrAccessKeys()`로 발급합니다. 842개 전체 발급은 상세조회·인증·오류화면·라벨 파일럿이 모두 통과한 뒤 진행합니다.
+
+자세한 배포와 파일럿 검증 절차는 [`apps-script-detail/README.md`](apps-script-detail/README.md)를 참고합니다.
 
 ---
 
