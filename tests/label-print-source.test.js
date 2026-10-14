@@ -43,6 +43,14 @@ test('derived sheet formats latest judgment date, falls back to master location,
   assert.match(source, /validation\.ok/);
 });
 
+test('derived label sheet keeps floor grouping when review locations are appended later', () => {
+  const source = read('apps-script/LabelPrint.gs');
+  const mapBody = functionBody(source, 'readLabelPrintLocationOrderMap_');
+  const itemBody = functionBody(source, 'buildLabelPrintBrowseItem_');
+  assert.match(mapBody, /floorOrder/);
+  assert.match(itemBody, /floorSortOrder/);
+});
+
 test('non-printable rows keep an empty selection cell instead of a visible FALSE value', () => {
   const source = read('apps-script/LabelPrint.gs');
   const rowBuilder = functionBody(source, 'labelPrintBrowseItemToRow_');

@@ -40,6 +40,14 @@ test('completion revalidates environment and active QR identity before writes', 
   assert.match(body, /item\.qrUrl/);
 });
 
+test('completion rejects a stale preview unless the same batch is already recorded', () => {
+  const source = read('apps-script/LabelPrintCompletion.gs');
+  const body = functionBody(source, 'completeLabelPrintBatch');
+  assert.match(body, /sameBatch/);
+  assert.match(body, /labelPrintIssueStateMatchesFingerprint\(issue, item\.issueStateFingerprint\)/);
+  assert.match(body, /미리보기 이후 출력 이력이 변경되었습니다/);
+});
+
 test('completion records cached printed facts and delegates idempotency to core patch builder', () => {
   const source = read('apps-script/LabelPrintCompletion.gs');
   const body = functionBody(source, 'completeLabelPrintBatch');
