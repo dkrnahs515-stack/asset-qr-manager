@@ -65,7 +65,7 @@ test('snapshot freezes printed facts and stores cache chunks by page for six hou
   for (const field of [
     'batchId', 'environment', 'printSettings', 'inspectionDate', 'accessKey',
     'qrUrl', 'newAssetNo', 'name', 'currentFloor', 'currentSpaceName', 'currentResult',
-    'printType', 'locationSortOrder'
+    'printType', 'issueStateFingerprint', 'floorSortOrder', 'locationSortOrder'
   ]) assert.ok(prepare.includes(field), `snapshot missing ${field}`);
 
   const settingsSnapshot = functionBody(source, 'buildLabelPrintSettingsSnapshot_');
@@ -90,6 +90,14 @@ test('snapshot freezes printed facts and stores cache chunks by page for six hou
   assert.match(store, /labelPrintPreviewPageKey_/);
   assert.match(source, /LABEL_PRINT_PREVIEW_CACHE_TTL_SECONDS\s*=\s*21600/);
   assert.match(store, /compactPage\.length > 24/);
+});
+
+test('preview snapshot captures issue state and floor grouping before caching', () => {
+  const source = read('apps-script/LabelPrintPreviewService.gs');
+  const prepare = functionBody(source, 'prepareLabelPrintPreview');
+  assert.match(prepare, /buildLabelPrintIssueStateFingerprint\(issue\)/);
+  assert.match(prepare, /resolveLabelPrintFloorOrderFromMap_/);
+  assert.match(prepare, /floorSortOrder/);
 });
 
 test('preview load accepts only opaque tokens and revalidates environment and active QR identity', () => {
