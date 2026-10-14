@@ -38,7 +38,7 @@ function readLabelPrintMasterAssets_(sheet) {
 function readLabelPrintLocationOrderMap_(sheet) {
   var headers = getHeaders_(sheet);
   var index = requireHeaders_(headers, ['위치코드', '층', '공간명', '모바일정렬순서'], sheet.getName());
-  var result = { byCode: {}, byName: {} };
+  var result = { byCode: {}, byName: {}, floorOrder: {} };
   if (sheet.getLastRow() <= 1) return result;
   sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues().forEach(function (row) {
     var code = String(row[index['위치코드']] || '').trim();
@@ -97,6 +97,10 @@ function buildLabelPrintBrowseItem_(asset, currentState, issueRows, settings, lo
   var locationSortOrder = resolveLabelPrintLocationOrder_(
     locationMap, currentLocationCode, currentFloor, currentSpaceName
   );
+  var floorSortOrder = locationMap && locationMap.floorOrder &&
+    Object.prototype.hasOwnProperty.call(locationMap.floorOrder, currentFloor)
+    ? Number(locationMap.floorOrder[currentFloor])
+    : null;
 
   return {
     selected: false,
@@ -113,6 +117,7 @@ function buildLabelPrintBrowseItem_(asset, currentState, issueRows, settings, lo
     printability: validation.ok ? '출력가능' : validation.reason,
     systemId: asset.systemId,
     qrLookupUrl: displayIssue ? String(displayIssue.lookupUrl || '') : '',
+    floorSortOrder: Number.isFinite(floorSortOrder) ? floorSortOrder : null,
     locationSortOrder: locationSortOrder,
     validation: validation
   };
