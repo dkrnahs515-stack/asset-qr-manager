@@ -7,6 +7,8 @@ const {
   normalizeLabelPrintSettings,
   classifyLabelPrintType,
   validateLabelPrintCandidate,
+  buildLabelPrintIssueStateFingerprint,
+  labelPrintIssueStateMatchesFingerprint,
   sortLabelPrintItems,
   paginateLabelPrintItems,
   calculateLabelSlotPosition,
@@ -132,6 +134,26 @@ test('label items sort by mapped location order, then asset number, with unknown
   const sorted = sortLabelPrintItems(items);
   assert.deepEqual(sorted.map(item => item.systemId), ['A', 'C', 'B', 'D']);
   assert.deepEqual(items.map(item => item.systemId), ['D', 'C', 'B', 'A'], 'sort must not mutate caller array');
+});
+
+test('label items keep floor groups ahead of late-added review locations', () => {
+  const items = [
+    { systemId: 'EXT', newAssetNo: 'E', currentFloor: '외부', currentSpaceName: '기타', floorSortOrder: 43, locationSortOrder: 47 },
+    { systemId: 'B1-REVIEW', newAssetNo: 'B', currentFloor: '지하 1층', currentSpaceName: '청소년아지트 1호점', floorSortOrder: 1, locationSortOrder: 51 },
+    { systemId: '3F', newAssetNo: 'C', currentFloor: '3층', currentSpaceName: '301호', floorSortOrder: 30, locationSortOrder: 30 },
+    { systemId: '2F-REVIEW', newAssetNo: 'D', currentFloor: '2층', currentSpaceName: '통합 사무실', floorSortOrder: 22, locationSortOrder: 49 }
+  ];
+  assert.deepEqual(sortLabelPrintItems(items).map(item => item.systemId), ['B1-REVIEW', '2F-REVIEW', '3F', 'EXT']);
+});
+
+test('issue-state fingerprint detects stale preview changes while accepting identical state', () => {
+  const issue = activeIssue({ issueStatus: '미발급', reprintRequired: 'N', reprintCount: 2, lastPrintBatchId: 'LABEL-20260826-001' });
+  const fingerprint = buildLabelPrintIssueStateFingerprint(issue);
+  assert.equal(labelPrintIssueStateMatchesFingerprint(issue, fingerprint), true);
+  assert.equal(labelPrintIssueStateMatchesFingerprint({ ...issue, issueStatus: '발급완료' }, fingerprint), false);
+  assert.equal(labelPrintIssueStateMatchesFingerprint({ ...issue, reprintRequired: 'Y' }, fingerprint), false);
+  assert.equal(labelPrintIssueStateMatchesFingerprint({ ...issue, reprintCount: 3 }, fingerprint), false);
+  assert.equal(labelPrintIssueStateMatchesFingerprint({ ...issue, lastPrintBatchId: 'LABEL-20260826-002' }, fingerprint), false);
 });
 
 test('batch IDs are date-scoped and zero-padded', () => {
